@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="std::array&lt;*,*&gt;">
+		<DisplayString>{{{_Elems[0]},{_Elems[1]}}}{{ (size={$T2})}}</DisplayString>
+		<Expand>
+			<ArrayItems>
+				<Size>$T2</Size>
+				<ValuePointer>_Elems</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
+	<Type Name="seacudiff::internal::v_wrapper_t&lt;*&gt;">
+		<Intrinsic Name="deltaAbs" ReturnType="int" Expression="delta_ &lt; 0 ? delta_ * -1 : delta_" />
+		<DisplayString>{{d_lvl={d_lvl_}}}</DisplayString>
+		<Expand>
+			<ArrayItems>
+				<Size>(d_lvl_*2)+1</Size>
+				<LowerBound>-d_lvl_+delta_</LowerBound>
+				<ValuePointer>v_.storage_.data_+(offset_-d_lvl_) + delta_</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
+	<Type Name="gsl::span&lt;char const,*&gt;">
+		<Intrinsic Name="size" Expression="storage_.size_" />
+		<Intrinsic Name="data" Expression="storage_.data_" />
+		<DisplayString>{storage_.data_, [storage_.size_]}</DisplayString>
+		<StringView>storage_.data_,[storage_.size_]</StringView>
+	</Type>
+</AutoVisualizer>

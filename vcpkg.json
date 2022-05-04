@@ -1,0 +1,13 @@
+{
+  "name": "seacu",
+  "version": "0.1.0",
+  "dependencies": [
+    "ms-gsl",
+    "fmt",
+    {
+      "name": "abseil",
+      "features": [ "cxx17" ]
+    }
+  ]
+
+}
