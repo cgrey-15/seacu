@@ -6,5 +6,5 @@ project(SeacuProject LANGUAGES CXX)
 
 find_package(Microsoft.GSL CONFIG REQUIRED)
 find_package(fmt CONFIG)
-find_package(absl COMPONENTS absl::hash CONFIG REQUIRED)
+find_package(Boost REQUIRED)
 add_subdirectory(seacudiff)

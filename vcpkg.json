@@ -4,10 +4,7 @@
   "dependencies": [
     "ms-gsl",
     "fmt",
-    {
-      "name": "abseil",
-      "features": [ "cxx17" ]
-    }
+    "boost-container-hash"
   ]
 
 }

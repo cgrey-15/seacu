@@ -1,0 +1,56 @@
+// seacudiff/diff_standard.h
+public:
+			auto ses(gsl::span<const char> a, gsl::span<const char> b, bool do_reverse = false) -> std::pair<int, std::vector<std::array<int, 2>> >;
+
+// seacudiff/diff_standard.cpp
+auto seacudiff::impl::e_graph::ses(gsl::span<const char> a, gsl::span<const char> b, bool do_reverse) ->std::pair<int, std::vector<std::array<int, 2>> > {
+    std::vector<int> v_raw((m + n) * 2 + 1);
+
+    auto v = internal::v_wrapper_t<typename decltype(v_raw)::value_type>{ v_raw, m + n };
+
+    constexpr auto int_min = std::numeric_limits<int>::min();
+    auto res = std::vector<std::array<int, 2>>{ v_raw.size(), {int_min, int_min} };
+    auto res_view = internal::v_wrapper_t<typename decltype(res)::value_type>{ res, m + n };
+
+    //std::cout << fmt::format("{:p}\n", v_raw.data());
+    std::cout << std::hex << v_raw.data() << "\n";
+
+    int d_res = -1;
+    int delta = do_reverse ? a.size() - b.size() : 0;
+
+    if (do_reverse) {
+        v[1 + delta] = a.size() + 1;
+    }
+    else {
+        v[1] = 0;
+    }
+    for (int d_lvl = 0; d_lvl <= m + n; ++d_lvl) {
+        for (int k = -d_lvl; k <= d_lvl; k += 2) {
+            int x = do_reverse ? get_backward_frp(k, a, b, d_lvl, v) : get_forward_frp(k, a, b, d_lvl, v);
+            int y = x - (k + delta);
+            v[k + delta] = x;
+            res_view[k + delta] = { x, y };
+            if (do_reverse) {
+                if (x <= 0 && y <= 0) {
+                    d_res = d_lvl;
+                }
+            }
+            else {
+                if (x >= this->n && y >= this->m) {
+                    d_res = d_lvl;
+                    //return { d_lvl, res };
+                }
+            }
+        }
+#if defined(_DEBUG) || defined(_GLIBCXX_DEBUG) || defined(_LIBCPP_DEBUG)
+        //print_vertices(res, (m + n - d_lvl + delta), static_cast<size_t>(d_lvl) + 1);
+#endif
+        if (d_res >= 0) break;
+    }
+
+    if (d_res < 0) {
+        return { -1, res };
+    }
+    else
+        return { d_res, res };
+}

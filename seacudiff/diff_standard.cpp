@@ -13,7 +13,7 @@
 #include <fmt/format.h>
 #endif
 #include <algorithm>
-#include <absl/hash/hash.h>
+#include <boost/container_hash/hash.hpp>
 #include "diff_standard.h"
 
 namespace seacudiff {
@@ -267,7 +267,7 @@ seacudiff::SimpleSequence::SimpleSequence(std::string_view* b, std::string_view*
     //auto maxValBitWidth = figure_bits(e - b);
     //h.reserve(2 * maxValBitWidth);
 
-    absl::Hash<std::string_view> hsh{};
+    boost::hash<std::string_view> hsh{};
     for (auto& el : h) {
         if (b == e) break;
         el = hsh(*(b++));
