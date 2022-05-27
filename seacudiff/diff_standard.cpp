@@ -12,6 +12,7 @@
 #ifdef SEACUDIFF_DEBUG
 #include <fmt/format.h>
 #endif
+#undef SEACUDIFF_DEBUG
 #include <algorithm>
 #include <boost/container_hash/hash.hpp>
 #include "diff_standard.h"
@@ -91,31 +92,38 @@ std::enable_if_t<B> do_print_vertices(const std::vector<std::array<int,2>>& res,
 #ifdef SEACUDIFF_DEBUG
 #define PRINT_VERTICES(r, o, s, d, b) do_print_vertices<true>(r, o, s, d, b)
 #else
-#define PRINT_VERTICES(r, o, s, d, b)
+#define PRINT_VERTICES(r, o, s_, d, b)
 #endif
 
-static int get_forward_frp(int k, seq_v a, seq_v b, int d_lvl,
-    seacudiff::internal::v_wrapper_t<const int> v)
+static auto get_forward_frp(int k, seq_v a, seq_v b, int d_lvl,
+    seacudiff::internal::v_wrapper_t<const int> v) -> std::pair<int, int>
 {
     auto n = a.size();
     auto m = b.size();
 
     int x = 0;
 
-    if (k == -d_lvl || (k != d_lvl && v[k - 1] < v[k + 1]))
+    std::pair<int, int> res;
+    if (k == -d_lvl || (k != d_lvl && v[k - 1] < v[k + 1])) {
+        res.second = k + 1;
         x = v[k + 1];
-    else
+    }
+    else {
+        res.second = k - 1;
         x = v[k - 1] + 1;
+    }
 
     int y = x - k;
     while (x < n && y < m && a[x] == b[y]) {
         ++x;
         ++y;
     }
-    return x;
+    //return x;
+    res.first = x;
+    return res;
 }
-static int get_backward_frp(int k_2, seq_v a, seq_v b, int d_lvl,
-    seacudiff::internal::v_wrapper_t<const int> v_2) {
+static auto get_backward_frp(int k_2, seq_v a, seq_v b, int d_lvl,
+    seacudiff::internal::v_wrapper_t<const int> v_2) -> std::pair<int, int> {
     auto n = a.size();
     auto m = b.size();
 
@@ -124,10 +132,15 @@ static int get_backward_frp(int k_2, seq_v a, seq_v b, int d_lvl,
 
     int x = n;
 
-    if (k_2 == -d_lvl + delta || (k_2 != d_lvl + delta && v_2[k_2 - 1] > v_2[k_2 + 1]))
+    std::pair<int, int> res;
+    if (k_2 == -d_lvl + delta || (k_2 != d_lvl + delta && v_2[k_2 - 1] > v_2[k_2 + 1])) {
+        res.second = k_2 + 1;
         x = v_2[k_2 + 1] - 1;
-    else
+    }
+    else {
+        res.second = k_2 - 1;
         x = v_2[k_2 - 1];
+    }
 
     int y = x - k_2;
     int old_x = x;
@@ -135,12 +148,11 @@ static int get_backward_frp(int k_2, seq_v a, seq_v b, int d_lvl,
         --x;
         --y;
     }
-    //return std::min(x + 1, old_x);//x;
-    return x;
+    //return x;
+    res.first = x;
+    return res;
 
 }
-
-
 
 auto seacudiff::impl::e_graph::middle_snake(gsl::span<const char> a, gsl::span<const char> b)->std::pair<int, seacudiff::impl::e_graph::snake_ep_t> {
     auto n = a.size(), m = b.size();
@@ -173,11 +185,15 @@ auto seacudiff::impl::e_graph::middle_snake(gsl::span<const char> a, gsl::span<c
     for (int d_lvl = 0, hf = std::ceil((a.size() + b.size()) / 2.0); d_lvl <= hf; ++d_lvl) {
 
         for (int k = -d_lvl; k <= d_lvl; k += 2) {
-            x1 = get_forward_frp(k, a, b, d_lvl, v_a);
+            auto v = get_forward_frp(k, a, b, d_lvl, v_a);
+            x1 = v.first;
             y1 = x1 - k;
             v_a[k] = x1;
             res_view_a[k] = { x1, y1 };
             // TODO if d_lvl==0 ... possible corner case?
+
+            //edits.emplace_back(eval_and_add_edit(d_lvl, k, v.second, v.first));
+
             if (!deltaIsEven && (k >= delta - (d_lvl - 1) && k <= delta + (d_lvl - 1))) {
                 //if (x1 - y1 == x2 - y2 && x1 >= x2) {
                 if (v_a[k] >= v_b[k]) {
@@ -204,10 +220,14 @@ auto seacudiff::impl::e_graph::middle_snake(gsl::span<const char> a, gsl::span<c
 
         for (int k = -d_lvl; k <= d_lvl; k += 2) {
             int k2 = k + delta;
-            x2 = get_backward_frp(k, a, b, d_lvl, v_b);
+            auto v = get_backward_frp(k, a, b, d_lvl, v_b);
+            x2 = v.first;
             y2 = x2 - k2;
             v_b[k2] = x2;
             res_view_b[k2] = { x2, y2 };
+
+            //edits.emplace_back(eval_and_add_edit(d_lvl, k, v.second, v.first));
+
             if (deltaIsEven && (k2 >= -d_lvl && k2 <= d_lvl)) {
                 //if (x2 - y2 == x1 - y1 && x1 >= x2) {
                 if (v_a[k2] >= v_b[k2]) {
@@ -232,16 +252,18 @@ auto seacudiff::impl::e_graph::middle_snake(gsl::span<const char> a, gsl::span<c
 
     return { -1, {} };
 }
-
-auto seacudiff::impl::e_graph::find_lcs(seq_v a, seq_v b)->std::string {
+auto seacudiff::impl::e_graph::find_lcs()->std::string {
+    return do_find_lcs(a_view, b_view);
+}
+auto seacudiff::impl::e_graph::do_find_lcs(seq_v a, seq_v b)->std::string {
     auto n = a.size(), m = b.size();
     std::string res;
     if (n > 0 && m > 0) {
-        auto [d_lvl, s] = middle_snake(a, b);
+        auto [d_lvl, s_] = middle_snake(a, b);
         if (d_lvl > 1) {
-            res.append(find_lcs(a.subspan(0, s.x), b.subspan(0, s.y)));
-            res.append(a.data() + s.x, s.u - s.x);
-            res.append(find_lcs(a.subspan(s.u), b.subspan(s.v)));
+            res.append(do_find_lcs(a.subspan(0, s_.x), b.subspan(0, s_.y)));
+            res.append(a.data() + s_.x, s_.u - s_.x);
+            res.append(do_find_lcs(a.subspan(s_.u), b.subspan(s_.v)));
             //auto sa = find_lcs(a.subspan(s.u), b.subspan(s.v));
             return res;
         }
@@ -254,16 +276,46 @@ auto seacudiff::impl::e_graph::find_lcs(seq_v a, seq_v b)->std::string {
     }
     return "";
 }
-
-namespace seacudiff {
-    class SimpleSequence {
-        std::vector<uint16_t> h;
-    public:
-        explicit SimpleSequence(std::string_view* b, std::string_view* e);
-    };
+auto seacudiff::impl::e_graph::get_diff()->std::vector<seacudiff::edit_t> {
+    return do_get_diff(a_view, b_view);
 }
 
-seacudiff::SimpleSequence::SimpleSequence(std::string_view* b, std::string_view* e) : h(figure_bits(e-b), 0) {
+auto seacudiff::impl::e_graph::do_get_diff(seq_v a, seq_v b)->std::vector<seacudiff::edit_t> {
+    auto n = a.size(), m = b.size();
+    std::vector<edit_t> res;
+    if (n > 0 && m > 0) {
+        auto [d_lvl, s_] = middle_snake(a, b);
+        if (d_lvl > 1) {
+            auto v_a = do_get_diff(a.subspan(0, s_.x), b.subspan(0, s_.y));
+            res.insert(res.end(), v_a.begin(), v_a.end());
+            auto v_b = do_get_diff(a.subspan(s_.u), b.subspan(s_.v));
+            res.insert(res.end(), v_b.begin(), v_b.end());
+        }
+        else if (m > n) {
+            res.emplace_back( edit_t{edit_t::type_e::Add, static_cast<size_t>(&a[0] - &*a_begin), "", std::string(1,b[0]) });
+            std::exit(-45);
+        }
+        else if (n > m) {
+            res.emplace_back(edit_t{edit_t::type_e::Delete, static_cast<size_t>(&a[0] - &*a_begin) + 1, std::string(1,a[0]), "" });
+            std::exit(-46);
+        }
+    }
+    else if (m > n) {
+        res.emplace_back( edit_t{edit_t::type_e::Add, static_cast<size_t>(a.data() - &*a_begin), "", std::string(1,b[0]) });
+    }
+    else if (n > m) {
+            res.emplace_back(edit_t{ edit_t::type_e::Delete, static_cast<size_t>(a.data() - &*a_begin) + 1, std::string(1,a[0]), "" });
+    }
+    return res;
+}
+// TODO
+seacudiff::edit_t seacudiff::impl::e_graph::eval_and_add_edit(int, int, int, int) {
+    return {};
+}
+
+
+#if 0
+seacudiff::SimpleSequence::SimpleSequence(std::string_view* b, std::string_view* e, bool, impl::SequenceProcessor& s, std::vector<SimpleRecord>& recs) {//: h(figure_bits(e-b), 0) {
     //auto maxValBitWidth = figure_bits(e - b);
     //h.reserve(2 * maxValBitWidth);
 
@@ -273,7 +325,7 @@ seacudiff::SimpleSequence::SimpleSequence(std::string_view* b, std::string_view*
         el = hsh(*(b++));
     }
 }
-
+#endif
 uint32_t seacudiff::figure_bits(uint32_t n) {
     uint32_t res = 1;
     while (res < n) {

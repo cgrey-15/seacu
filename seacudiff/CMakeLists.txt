@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.17)
 
 set(SEACUDIFF_MAIN_SOURCES "main.cpp")
-set(SEACUDIFF_SOURCES "diff_histogram.cpp" "diff_histogram.h" "seacudiff.h" "diff_standard.cpp" "diff_standard.h" "seacudiff.cpp" "UmberSequence.h" "UmberSequence.cpp")
+set(SEACUDIFF_SOURCES "diff_histogram.cpp" "diff_histogram.h" "seacudiff.h" "diff_standard.cpp" "diff_standard.h" "seacudiff.cpp" "UmberSequence.h" "UmberSequence.cpp" "SequenceProcessor.h" "SequenceProcessor.cpp" "SeacudiffTypes.h" "SimpleSequence.cpp")
 
 add_library(seacudiff ${SEACUDIFF_SOURCES})
 add_executable(test_prog ${SEACUDIFF_MAIN_SOURCES})
+target_link_libraries(test_prog argparse::argparse)
 
 target_compile_features(seacudiff PUBLIC cxx_std_20)
 target_link_libraries(seacudiff PRIVATE Microsoft.GSL::GSL Boost::headers)
