@@ -11,3 +11,4 @@ seacudiff::UmberSequence::UmberSequence(It beginLA, It endLA, It beginLB, It end
 }
 
 template seacudiff::UmberSequence::UmberSequence(standard_sv_it, standard_sv_it, standard_sv_it, standard_sv_it);
+template seacudiff::UmberSequence::UmberSequence(standard_s_it, standard_s_it, standard_s_it, standard_s_it);

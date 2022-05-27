@@ -16,3 +16,5 @@ namespace seacudiff {
 
 using standard_sv_it = typename std::string_view::const_iterator;
 extern template seacudiff::UmberSequence::UmberSequence(standard_sv_it beginLA, standard_sv_it endLA, standard_sv_it beginLB, standard_sv_it endLB);
+using standard_s_it = typename std::string::const_iterator;
+extern template seacudiff::UmberSequence::UmberSequence(standard_s_it beginLA, standard_s_it endLA, standard_s_it beginLB, standard_s_it endLB);
