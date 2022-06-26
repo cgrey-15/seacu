@@ -6,6 +6,7 @@
     "fmt",
     "boost-unordered",
     "boost-container-hash",
+    "boost-static-string",
     "argparse"
   ]
 

@@ -83,6 +83,49 @@
       "description": "Target Windows (32-bit) with the Visual Studio development environment. (RelWithDebInfo)",
       "inherits": "x86-debug",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "address-sanitizer-enabled",
+      "hidden": true,
+      "description": "Addds ASAN flags",
+      "cacheVariables": {
+        "SEACUDIFF_ASAN_ENABLED": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
+    },
+    {
+      "name": "vcpkg-root-enabled",
+      "description": "Set toolchain file to user-supplied vcpkg using environment variable VCPKG_ROOT",
+      "hidden": true,
+      "condition": {
+        "type": "notEquals",
+        "lhs": "$env{VCPKG_ROOT}",
+        "rhs": ""
+      },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "PATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      }
+    },
+    {
+      "name": "vcpkg-manifest-mode-enabled",
+      "description": "Pull dependencies at project-level using vcpkg.json (doesn't set toolchain file)",
+      "hidden": true,
+      "cacheVariables": { "VCPKG_MANIFEST_MODE": {"type": "BOOL", "value": "ON"} }
+    },
+    {
+      "name": "tests-enabled",
+      "hidden": true,
+      "cacheVariables": {
+        "SEACU_ENABLE_TESTS": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
     }
   ]
 }

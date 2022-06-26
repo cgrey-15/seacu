@@ -14,7 +14,8 @@ namespace seacudiff {
 
 	struct DiffEntrySeacufiles {
 		DiffEntrySeacufiles(std::string_view rawStr, bool isOperandA);
-		//std::span<uint32_t> currRegion{sequence.data(), sequence.size()};
+		auto seqData() const noexcept->std::span<const typename seacudiff::SimpleSequence::element_type>;
+		SimpleRecord const* getLineRecord(uint32_t id) const noexcept;
 	private:
 		friend class impl::SequenceProcessor;
 		std::string_view rawContents;

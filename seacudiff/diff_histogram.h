@@ -1,3 +1,6 @@
+#idndef DIFF_HISTOGRAM_H
+#define DIFF_HISTOGRAM_H
+#pragma once
 #include <vector>
 
 namespace seacu {
@@ -7,3 +10,4 @@ namespace seacu {
         my_pog_t find_lcs(const s_t& a, const s_t& b, some_edit_t r);
     }
 }
+#endif // DIFF_HISTOGRAM_H

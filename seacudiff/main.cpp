@@ -8,16 +8,14 @@
 #include <sstream>
 #include <fstream>
 
-auto try_ses_lcs(std::string_view a, std::string_view b, bool do_backwards = false)->std::pair<std::string, size_t>;
-auto try_ses_diff(std::string_view a, std::string_view b)->std::pair<std::vector<seacudiff::edit_t>, size_t>;
-int do_char_diff_loop(bool lcs_included);
-int do_in_mem_diff(std::string_view buf_a, std::string_view buf_b, bool lcs_included);
-int do_file_diff(std::string& filename_a, std::string& filename_b, bool lcs_included);
+auto try_ses_lcs_l(std::string_view a, std::string_view b, bool do_backwards = false)->std::pair<std::vector<uint32_t>, size_t>;
+int do_char_diff(std::string_view v_a, std::string_view v_b, bool lcs_included, bool disable_diff);
+int do_char_diff_loop(bool lcs_included, bool disable_diff);
+int do_file_diff(std::string& filename_a, std::string& filename_b);
+
 
 int main(int argc, char* argv[]) {
-    using namespace seacu;
-
-    //static_assert(static_cast<void*>(do_file_diff) == static_cast<void*>(do_in_mem_diff));
+    //using namespace seacu;
 
     bool use_backwards = false;
 
@@ -27,77 +25,46 @@ int main(int argc, char* argv[]) {
         using namespace std::string_literals;
         prog.add_argument("DiffEntries").default_value(std::vector<std::string>{""s,""s}).nargs(2);
         prog.add_argument("--lcs").implicit_value(true).default_value(false);
+        prog.add_argument("--no-diff").implicit_value(true).default_value(false);
+        prog.add_argument("-i", "--letter-symbol-inputs").default_value(std::vector<std::string>{""s, ""s}).nargs(2);
     }
     try {
         prog.parse_args(argc, argv);
     }
     catch (std::runtime_error& e) {
-        //std::cerr << "oops: " << e.what() << "\n";
-        std::cerr << e.what() << "\n";
+        std::cerr << "argparse: " << e.what() << std::endl;
         std::exit(1);
     }
 
+    int res = 0;
 
-#if 0
-    if (argc > 1 && std::string_view{ argv[1] } != "-b") {
-        if (argc > 2) {
-            std::cerr << "Too many arguments. ";
+    if (prog.is_used("DiffEntries")) {
+        if (prog.is_used("-i") || prog.is_used("--lcs")) {
+            if (prog.is_used("-i")) {
+                std::cerr << " test_prog: -i/--letter-sym... incompatible with given filenames; use either one or the other" << std::endl;
+            }
+            if (prog.is_used("--lcs")) {
+                std::cerr << "test_prog: --lcs cannot be used with file diffs of lines." << std::endl;
+            }
+            res = 1;
         }
         else {
-            std::cerr << "Unsupported/invalid argument. ";
-        }
-        std::cerr << "Use option '-b' for backwards functionality.\n";
-        return 1;
-    }
-    else if (argc == 1) {
-    }
-    else {
-        use_backwards = true;
-    }
-
-    std::array<int, 4> boo = { 1, 2, 3, 4 };
-
-    std::string s_a;
-    std::string s_b;
-
-    std::vector<std::pair<std::size_t, std::size_t>> pos_len{};
-    std::string str_data{};
-    std::string str_buf{};
-    std::istringstream str_s{};
-
-    while (std::getline(std::cin, s_a) && std::getline(std::cin, s_b)) {
-        auto result = try_ses_lcs(s_a, s_b, use_backwards);
-        auto huhh = try_ses_diff(s_a, s_b);
-        auto& bah = huhh.first;
-        //std::cout << "Result is " << result.first << "-path.\n";
-        std::cout << result.first << "(E count is " << result.second << ")\n";
-        str_s = std::istringstream{ s_a };
-        while (str_s >> str_buf) {
-            pos_len.push_back({ str_data.size(), str_buf.size() + 1 });
-            str_data.append(str_buf);
-            str_data.push_back('\n');
+            auto fnames = prog.get<std::vector<std::string>>("DiffEntries");
+            res = do_file_diff(fnames[0], fnames[1]);
         }
     }
-    std::vector<std::string_view> lines{};
-    for (const auto& el : pos_len) {
-        lines.emplace_back(str_data.data() + el.first, el.second);
-    }
-#endif
-
-    //seacudiff::SimpleSequence seq{ lines.data(), lines.data() + lines.size() };
-    int res = 0;
-    if (!prog.is_used("DiffEntries")) {
-        res = do_char_diff_loop(prog.get<bool>("--lcs"));
+    else if (prog.is_used("-i")) {
+        auto snames = prog.get<std::vector<std::string>>("-i");
+        res = do_char_diff(snames[0], snames[1], prog.get<bool>("--lcs"), prog.get<bool>("--no-diff"));
     }
     else {
-        auto fnames = prog.get<std::vector<std::string>>("DiffEntries");
-        res = do_file_diff(fnames[0], fnames[1], prog.get<bool>("--lcs"));
+        res = do_char_diff_loop(prog.get<bool>("--lcs"), prog.get<bool>("--no-diff"));
     }
 
     return res;
 }
 
-int do_file_diff(std::string& filename_a, std::string& filename_b, bool lcs_included) {
+int do_file_diff(std::string& filename_a, std::string& filename_b) {
     constexpr std::size_t CAP = 32;
 
     std::array<char, CAP> buf;
@@ -127,29 +94,44 @@ int do_file_diff(std::string& filename_a, std::string& filename_b, bool lcs_incl
         str_b.append(buf.data(), s1.gcount());
     }
 
-    return do_in_mem_diff(str_a, str_b, lcs_included);
+    return do_in_mem_diff(str_a, str_b, std::cout);
 }
 
-int do_char_diff_loop(bool lcs_included) {
+int do_char_diff(std::string_view v_a, std::string_view v_b, bool lcs_included, bool disable_diff) {
+    std::string aux_buf;
+
+    if (v_a.empty() || v_b.empty()) {
+        std::getline(std::cin, aux_buf);
+        v_a.empty() ? v_a = aux_buf : v_b = aux_buf;
+    }
+    if (lcs_included || disable_diff) {
+        auto result0 = try_ses_lcs_s(v_a, v_b);
+        auto result = std::string_view{ result0.first.begin(), result0.first.end() };
+        std::cout << result << "(E count is " << result0.second << ")\n";
+    }
+    if (!disable_diff) {
+        auto huhh = try_ses_diff_s(v_a, v_b);
+        auto& bah = huhh.first;
+    }
+    return 0;
+}
+
+int do_char_diff_loop(bool lcs_included, bool disable_diff) {
     std::string s_a;
     std::string s_b;
 
     std::vector<std::pair<std::size_t, std::size_t>> pos_len{};
     while (std::getline(std::cin, s_a) && std::getline(std::cin, s_b)) {
-        if (lcs_included) {
-            auto result = try_ses_lcs(s_a, s_b);
-            std::cout << result.first << "(E count is " << result.second << ")\n";
+        if (lcs_included || disable_diff) {
+            auto result0 = try_ses_lcs_s(s_a, s_b);
+            auto result = std::string_view{ result0.first.begin(), result0.first.end()};
+            std::cout << result << "(E count is " << result0.second << ")\n";
         }
-        auto huhh = try_ses_diff(s_a, s_b);
-        auto& bah = huhh.first;
-#if 0
-        str_s = std::istringstream{ s_a };
-        while (str_s >> str_buf) {
-            pos_len.push_back({ str_data.size(), str_buf.size() + 1 });
-            str_data.append(str_buf);
-            str_data.push_back('\n');
+        if (!disable_diff) {
+            auto huhh = try_ses_diff_s(s_a, s_b);
+            auto& bah = huhh.first;
         }
-#endif
+
     }
     return 0;
 }

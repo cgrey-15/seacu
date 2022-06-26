@@ -93,7 +93,7 @@ auto seacudiff::impl::SequenceProcessor::dumpSequence(bool isA) -> std::vector<s
 	for (auto& record : seq->seqRecords) {
 		auto id = s_.find(record.str)->second.id;
 		assert(id <= std::numeric_limits<uint32_t>::max());
-		res.emplace_back(id);
+		res.emplace_back(static_cast<uint32_t>(id));
 		record.id = id;
 	}
 	return res;
