@@ -30,6 +30,7 @@ namespace seacudiff {
 			static auto middle_snake(v_seq a, v_seq b)->std::pair<int, snake_ep_t>;
 			static auto do_find_lcs(v_seq a, v_seq b)->std::vector<SeqT>;
 			auto do_get_diff(v_seq a, v_seq b)->std::vector<edit_t<SeqT>>;
+			auto do_get_diff_impl(v_seq a, v_seq b)->std::vector<edit_t<SeqT>>;
 			edit_t<SeqT> eval_and_add_edit(int d, int k, int prev_k, int x);
 
 			std::size_t n{};

@@ -87,9 +87,9 @@
     {
       "name": "address-sanitizer-enabled",
       "hidden": true,
-      "description": "Addds ASAN flags",
+      "description": "Adds ASAN flags",
       "cacheVariables": {
-        "SEACUDIFF_ASAN_ENABLED": {
+        "SEACU_ASAN_ENABLED": {
           "type": "BOOL",
           "value": "ON"
         }

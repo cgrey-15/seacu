@@ -291,18 +291,103 @@ template<typename SeqT>
 auto seacudiff::impl::e_graph<SeqT>::get_diff()->std::vector<seacudiff::edit_t<SeqT>> {
     return do_get_diff(a_view, b_view);
 }
+template<typename SeqT>
+bool overlaps(seacudiff::edit_t<SeqT> a, seacudiff::edit_t<SeqT> b) {
+    using edT = seacudiff::edit_t<SeqT>;
+    bool res = false;
+    if (a.type == edT::type_e::Add) {
+        auto min = b.pos - 1;
+        auto max = b.pos + b.value.size() - 2;
+        res = a.pos >= min && a.pos <= max;
+    }
+    else {
+        // type_e::Delete it is
+        auto min = a.pos - 1;
+        auto max = a.pos + a.value.size() - 2;
+        res = b.pos >= min && b.pos <= max;
+    }
+    return res;
+}
+template<typename SeqT>
+void merge_adjacent_changes(std::vector<seacudiff::edit_t<SeqT>>& out) {
+    using edT = seacudiff::edit_t<SeqT>;
 
+    int i = 0;
+    int j = 2;
+#if 1
+    auto fItCurr = out.rbegin(), fItPrev = out.rbegin() + 1, rEnd = out.rend();
+
+    while (fItPrev < rEnd) {
+        using namespace seacudiff;
+        while (fItPrev < rEnd && 
+            fItPrev->type == edT::type_e::Delete && fItCurr->type == edT::type_e::Delete && 
+            fItCurr->pos == fItPrev->pos + 1) 
+        {
+            auto newPrev = fItPrev + 1;
+            fItPrev->value = std::span<const SeqT>(fItPrev->value.data(), fItCurr->value.size() + 1);
+            out.erase(fItCurr.base() - 1);
+            fItPrev = newPrev;
+            fItCurr = fItPrev - 1;
+        }
+        if (fItPrev >= rEnd) {
+            break;
+        }
+        else {
+            ++fItPrev;
+            ++fItCurr;
+        }
+    }
+    fItCurr = out.rbegin();
+    fItPrev = out.rbegin() + 1;
+    rEnd = out.rend();
+
+    while (fItPrev < rEnd) {
+        using namespace seacudiff;
+        // Review later; may be non-exhaustive and even bad
+        if (fItPrev->type == edT::type_e::Delete && fItCurr->type == edT::type_e::Add && overlaps(*fItPrev, *fItCurr))
+        {
+            auto newPrev = fItPrev + 1;
+            fItPrev->type = edT::type_e::Replace;
+            fItPrev->value2 = fItCurr->value;
+            out.erase(fItCurr.base() - 1);
+            fItPrev = newPrev;
+            fItCurr = fItPrev - 1;
+        }
+        else if (fItPrev->type == edT::type_e::Add && fItCurr->type == edT::type_e::Delete && overlaps(*fItPrev, *fItCurr))
+        {
+            auto beforeNewPrev = fItPrev + 2; // Is this allowed and not UB?
+            fItCurr->type = edT::type_e::Replace;
+            fItCurr->value2 = fItPrev->value;
+            out.erase(fItPrev.base() - 1);
+            fItPrev = beforeNewPrev - 1; // Will this still work if it's at least at out.rend()??
+            fItCurr = fItPrev - 1;
+        }
+        else {
+            ++fItPrev;
+            ++fItCurr;
+        }
+    }
+#endif
+
+}
 template<typename SeqT>
 auto seacudiff::impl::e_graph<SeqT>::do_get_diff(v_seq a, v_seq b)->std::vector<seacudiff::edit_t<SeqT>> {
+    auto res = do_get_diff_impl(a, b);
+    merge_adjacent_changes(res);
+    return res;
+}
+
+template<typename SeqT>
+auto seacudiff::impl::e_graph<SeqT>::do_get_diff_impl(v_seq a, v_seq b)->std::vector<seacudiff::edit_t<SeqT>> {
     std::ptrdiff_t n = a.size(), m = b.size();
     std::vector<edit_t<SeqT>> res;
     if (n > 0 && m > 0) {
         auto [d_lvl, s_] = middle_snake(a, b);
 
         if(d_lvl > 1) {
-            auto v_a = do_get_diff(a.subspan(0, s_.x), b.subspan(0, s_.y));
+            auto v_a = do_get_diff_impl(a.subspan(0, s_.x), b.subspan(0, s_.y));
             res.insert(res.end(), v_a.begin(), v_a.end());
-            auto v_b = do_get_diff(a.subspan(s_.u), b.subspan(s_.v));
+            auto v_b = do_get_diff_impl(a.subspan(s_.u), b.subspan(s_.v));
             typename decltype(res)::const_iterator start_it = v_b.cbegin();
             if (!v_a.empty() && !v_b.empty() && v_a.back().type == edit_t<SeqT>::type_e::Add && v_b.front().type == edit_t<SeqT>::type_e::Add) {
                 assert(v_a.back().value.data() + v_a.back().value.size() == v_b.front().value.data());

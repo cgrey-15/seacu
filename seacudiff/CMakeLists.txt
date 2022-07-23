@@ -16,7 +16,7 @@ EditsSequenceTransformer.hpp)
 add_library(seacudiff ${SEACUDIFF_SOURCES})
 target_include_directories(seacudiff INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
-if(SEACUDIFF_ASAN_ENABLED)
+if(SEACU_ASAN_ENABLED)
  message(NOTICE "Seacudiff: Building with Address Sanitizer enabled.")
  if(MSVC)
   if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC" OR SEACUDIFF_FORCE_ASAN_ENABLED)

@@ -13,18 +13,28 @@ int seacudiff::diff_emit_t::foo() {
 
 namespace {
 	enum class diff_symbol {
-		ADD, DEL
+		ADD, DEL, REPL
 	};
 	static constexpr std::size_t BUFF_SIZE = 13;
 }
 
-int emit_chunk_header(seacudiff::diff_options& o, diff_symbol sy, std::size_t where_at, std::size_t first, std::size_t last) {
+int emit_chunk_header(seacudiff::diff_options& o, diff_symbol sy, std::size_t where_at, std::size_t first, std::size_t last, std::size_t first2=0, std::size_t last2=0) {
 	switch (sy) {
 	case diff_symbol::ADD:
 		(*o.file) << std::format("{}a{},{}\n", where_at, first, last);
 		break;
 	case diff_symbol::DEL:
 		(*o.file) << std::format("{},{}d{}\n", first, last, where_at);
+		break;
+	case diff_symbol::REPL:
+		if (first == last)
+			(*o.file) << std::format("{}c", first);
+		else
+			(*o.file) << std::format("{},{}c", first, last);
+		if (first2 == last2)
+			(*o.file) << std::format("{}\n", first2);
+		else
+			(*o.file) << std::format("{},{}\n", first2, last2);
 		break;
 	}
 	return 0;
@@ -71,14 +81,18 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 		switch (e.type) {
 		case in_c::value_type::type_e::Add:
 			s = diff_symbol::ADD;
+#define TO_DISCARDIA
+#ifndef TO_DISCARDIA
 			if (!consecut_deletes.empty()) {
 				flush_deletes = true;
 				del_begin = consecut_deletes.begin();
 				del_end = consecut_deletes.end();
 			}
+#endif
 			break;
 		case in_c::value_type::type_e::Delete:
 			s = diff_symbol::DEL;
+#ifndef TO_DISCARDIA
 			if (consecut_deletes.empty() || consecut_deletes.back()->value.data() + consecut_deletes.back()->value.size() == e.value.data()) {
 				consecut_deletes.emplace_back(&e);
 			}
@@ -90,8 +104,13 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 					del_end = consecut_deletes.end() - 1;
 				}
 			}
+#endif
+			break;
+		case in_c::value_type::type_e::Replace:
+			s = diff_symbol::REPL;
 			break;
 		}
+#ifndef TO_DISCARDIA
 		if (flush_deletes) {
 			flush_deletes = false;
 			std::size_t first = (*del_begin)->pos;
@@ -105,7 +124,17 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 			consecut_deletes.erase(del_begin, del_end);
 			del_begin = del_end = std::vector<in_c::value_type*>::iterator{};
 		}
-		if (s != diff_symbol::DEL) {
+#endif
+		if (s == diff_symbol::DEL) {
+			std::size_t first = e.change_pos;
+			std::size_t last = e.change_pos + e.value.size() - 1;
+			res = emit_chunk_header(o, diff_symbol::DEL, e.pos, first, last);
+			for (auto key : e.value) {
+				rec_ptr = a.getLineRecord(key);
+				res = emit_affected_line(o, rec_ptr->str, s);
+			}
+		}
+		else if (s == diff_symbol::ADD) {
 			std::size_t first = e.change_pos;
 			std::size_t last = e.change_pos + e.value.size() - 1;
 			res = emit_chunk_header(o, diff_symbol::ADD, e.pos, first, last);
@@ -114,8 +143,25 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 				res = emit_affected_line(o, rec_ptr->str, s);
 			}
 		}
+		else if (s == diff_symbol::REPL) {
+			std::size_t firstOld = e.change_pos;
+			std::size_t lastOld = e.change_pos + e.value.size() - 1;
+			std::size_t firstNew = e.pos;
+			std::size_t lastNew = e.pos + e.value2.size() - 1;
+			res = emit_chunk_header(o, diff_symbol::REPL, e.pos, firstOld, lastOld, firstNew, lastNew);
+			for (auto key : e.value) {
+				rec_ptr = a.getLineRecord(key);
+				res = emit_affected_line(o, rec_ptr->str, diff_symbol::DEL);
+			}
+			(*o.file) << "---\n";
+			for (auto key : e.value2) {
+				rec_ptr = b.getLineRecord(key);
+				res = emit_affected_line(o, rec_ptr->str, diff_symbol::ADD);
+			}
+		}
 
 	}
+#ifndef TO_DISCARDIA
 	if (!consecut_deletes.empty()) {
 		del_begin = consecut_deletes.begin();
 		del_end = consecut_deletes.end();
@@ -128,6 +174,7 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 			res = emit_affected_line(o, rec_ptr->str, diff_symbol::DEL);
 		}
 	}
+#endif
 	return res;
 }
 

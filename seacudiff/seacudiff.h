@@ -20,6 +20,7 @@ namespace seacudiff {
 		std::ptrdiff_t pos;// first;
 		std::ptrdiff_t change_pos;
 		std::span<const SeqT> value;
+		std::span<const SeqT> value2;
 	};
 
 	struct SimpleRecord {

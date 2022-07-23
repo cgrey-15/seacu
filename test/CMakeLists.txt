@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.19)
  enable_testing()
 if(CMAKE_CXX_COMPILER_ID MATCHES "[Cc][Ll][Aa][Nn][Gg]" OR CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
  add_subdirectory(src)
+ add_subdirectory(misc)
 else()
  # CRASH TESTS
  add_test(NAME test01 COMMAND test_prog -i hi h)
