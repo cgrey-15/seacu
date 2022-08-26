@@ -7,6 +7,7 @@
 #include <iostream>
 #include <variant>
 #include <type_traits>
+#include <utility>
 #ifdef __cpp_lib_spanstream
 #include <span>
 #include <spanstream>
@@ -30,7 +31,9 @@ public:
 
 	void insertAdd(ptrdiff_t pos, character_type const* begin, character_type const* end);
 	void insertDel(ptrdiff_t begin, ptrdiff_t end);
+	void insertRepl(ptrdiff_t oldBegin, ptrdiff_t oldEnd, ptrdiff_t pos, character_type const* begin, character_type const* end);
 	void flushRest();
+	auto lineCount() const noexcept { return srcLines_.size(); }
 
 	bool sourceExhausted() const noexcept { return !(currSrcPos_ < src_.size()); }
 
@@ -52,6 +55,12 @@ struct del_t {
 	ptrdiff_t srcFirstLine;
 	ptrdiff_t srcLastLine;
 };
+struct repl_t {
+	ptrdiff_t oldFirst;
+	ptrdiff_t oldLast;
+	ptrdiff_t oldPosition;
+	std::vector<std::string_view> newLines;
+};
 
 constexpr auto comparator = [](auto&& a, auto&& b) {
 
@@ -62,6 +71,10 @@ constexpr auto comparator = [](auto&& a, auto&& b) {
 		if (std::holds_alternative<add_t>(b)) {
 			auto& val_b = std::get<add_t>(b);
 			res = val_a.srcLineNo > val_b.srcLineNo;
+		}
+		else if (std::holds_alternative<repl_t>(b)) {
+			auto& val_b = std::get<repl_t>(b);
+			res = val_a.srcLineNo > val_b.oldFirst;
 		}
 		else {
 			auto& val_b = std::get<del_t>(b);
@@ -74,9 +87,26 @@ constexpr auto comparator = [](auto&& a, auto&& b) {
 			auto& val_b = std::get<add_t>(b);
 			res = val_a.srcFirstLine > val_b.srcLineNo;
 		}
+		else if (std::holds_alternative<repl_t>(b)) {
+			auto& val_b = std::get<repl_t>(b);
+			res = val_a.srcFirstLine > val_b.oldFirst;
+		}
 		else {
 			auto& val_b = std::get<del_t>(b);
 			res = val_a.srcFirstLine > val_b.srcFirstLine;
+		}
+	}
+	else if (std::holds_alternative<repl_t>(a)) {
+		auto& val_a = std::get<repl_t>(a);
+		if (std::holds_alternative<add_t>(b)) {
+			auto& val_b = std::get<add_t>(b);
+			res = val_a.oldFirst > val_b.srcLineNo;
+		}
+		else if (std::holds_alternative<del_t>(b)) {
+			res = std::get<repl_t>(a).oldFirst > std::get<del_t>(b).srcFirstLine;
+		}
+		else {
+			res = std::get<repl_t>(a).oldFirst > std::get<repl_t>(b).oldFirst;
 		}
 	}
 	else {
@@ -89,7 +119,7 @@ constexpr auto comparator = [](auto&& a, auto&& b) {
 template <typename>
 constexpr bool dependent_false_v = false;
 
-using prio_queue_t = std::priority_queue<std::variant<add_t, del_t>, std::vector<std::variant<add_t, del_t>>, decltype(comparator)>;
+using prio_queue_t = std::priority_queue<std::variant<add_t, del_t, repl_t>, std::vector<std::variant<add_t, del_t, repl_t>>, decltype(comparator)>;
 
 std::vector<std::string_view> get_lines(std::string_view buf);
 std::string apply_changes(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edits);
@@ -121,32 +151,26 @@ int seacupatch::patch(std::string_view buf_in, std::string_view buf_changes) {
 	patcher machine{ buf_in };
 	processChanges(theChanges, machine);
 	std::cout << machine.stdStringView() << "\n";
-#if 0
-	while (!theChanges.empty()) {
 
-		std::visit([](auto&& arg) {using T = std::decay_t<decltype(arg)>;
-		if constexpr (std::is_same_v<T, add_t>) std::cout << "ADD TYPE: " << arg.srcLineNo << "\n";
-		else if constexpr (std::is_same_v<T, del_t>) std::cout << "DEL TYPE: " << arg.srcFirstLine << "\n";
-		else static_assert(dependent_false_v<T>, "Non-exhaustive variant!");
-		return; }, theChanges.top());
-
-		theChanges.pop();
-	}
-#endif
 
 	return 0;
 }
 void handle_add_line(std::string_view orig, prio_queue_t& q, ptrdiff_t lineNo, tao::pegtl::parse_tree::node& line) {
-	constexpr std::string_view mssg = "\xe3\x81\xa8\xe6\x9b\xb8\xe3\x81\x84\xe3\x81\xa6\xe5\x85\xa5\xe3\x82\x8c\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
+	constexpr std::string_view mssg = "";//\xe3\x81\xa8\xe6\x9b\xb8\xe3\x81\x84\xe3\x81\xa6\xe5\x85\xa5\xe3\x82\x8c\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
 	auto begini = line.string_view().data();
 	auto endi = line.string_view().data() + line.string_view().size();
 	q.push(add_t{ .srcLineNo = lineNo,.begin = begini, .end = endi });
 	std::cout << " " << line.string_view() << mssg << "\n";
 }
 void handle_del_line(std::string_view orig, prio_queue_t& q, ptrdiff_t first, ptrdiff_t last, tao::pegtl::parse_tree::node& line) {
-	constexpr std::string_view mssg = "\xe3\x81\xa3\xe3\x81\xa6\xe6\xb6\x88\xe3\x81\x88\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
+	constexpr std::string_view mssg = "";//\xe3\x81\xa3\xe3\x81\xa6\xe6\xb6\x88\xe3\x81\x88\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
 	//del_t del{ .srcFirstLine = first,.srcLastLine = last };
 	q.push(del_t{ .srcFirstLine = first,.srcLastLine = last });
+	std::cout << " " << line.string_view() << mssg << "\n";
+}
+void handle_repl_added_line(std::vector<std::string_view>& lines, tao::pegtl::parse_tree::node& line) {
+	constexpr std::string_view mssg = "";//Oh it's \xe3\x81\xa3\xe3\x81\xa6\xe6\xb6\x88\xe3\x81\x88\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
+	lines.push_back(line.string_view());
 	std::cout << " " << line.string_view() << mssg << "\n";
 }
 void handle_adds(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edit) {
@@ -186,10 +210,46 @@ void handle_dels(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree:
 	std::cout << src_start << "," << src_end << " " << del_symbol << " " << where_would << "!\n";
 	assert(!instream.bad());
 	q.push(del_t{src_start, src_end});
-#if 0
-	for (auto& line : edit.children) {
-		handle_del_line(orig, q, src_start, src_end, *line);
+}
+
+void handle_repls(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edit) {
+#ifdef __cpp_lib_spanstream
+	std::span<const char> edit_info(edit.string_view().data(), edit.string_view().size());
+	std::ispanstream instream{ edit_info };
+#else
+	std::istringstream instream{ edit.string() };
+#endif
+
+	char repl_symbol = '\0', comma1, comma2;
+	ptrdiff_t old_start = -1, old_end = -1;
+	ptrdiff_t new_start = -1, new_last = -1;
+
+	instream >> old_start;
+	char tok = instream.get();
+	if (tok == ',') {
+		instream >> old_end;
+		tok = instream.get(); // consume diff symbol now
 	}
+	else
+		old_end = old_start; // tok is diff symbol here
+	instream >> new_start;
+	tok = instream.get();
+	if (tok == ',')
+		instream >> new_last;
+	else {
+		assert(instream.good());
+		new_last = new_start;
+	}
+
+	std::cout << old_start << "," << old_end << " " << repl_symbol << " " << new_start << "!\n";
+	std::vector<std::string_view> lines;
+	for (auto& line : edit.children.back()->children) {
+		handle_repl_added_line(lines, *line);
+	}
+#ifndef __clang__
+	q.emplace( std::in_place_type<repl_t>, old_start, old_end, new_start, std::move(lines) );
+#else
+	q.emplace(repl_t{ old_start, old_end, new_start, std::move(lines) });
 #endif
 }
 void processAdd(add_t info, patcher& p) {
@@ -200,12 +260,26 @@ void processDel(del_t info, patcher& p) {
 	std::cout << "(del) POS: [" << info.srcFirstLine << ", " << info.srcLastLine << "]\n";
 	p.insertDel(info.srcFirstLine, info.srcLastLine);
 }
+void processRepl(repl_t info, patcher& p) {
+	std::cout << "(replDEL) POS: [" << info.oldFirst << ", " << info.oldLast << "], [" << info.oldPosition << ", " << info.oldPosition << "]\n";
+	p.insertDel(info.oldFirst, info.oldLast);
+	for (auto lineno = info.oldLast, i = lineno-lineno; i < info.newLines.size(); ++i) {
+		std::cout << "(replADD) POS: [" << lineno << "]\n";
+		p.insertAdd(lineno, info.newLines[i].data(), info.newLines[i].data() + info.newLines[i].size());
+	}
+}
 
 void processChanges(prio_queue_t& q, patcher& p) {
-	while (!q.empty() && !p.sourceExhausted()) {
+	while (!q.empty()) {
 		std::visit([&p](auto&& arg) {using T = std::decay_t<decltype(arg)>;
-		if constexpr (std::is_same_v<T, add_t>) processAdd(arg, p);
+
+		if constexpr (std::is_same_v<T, add_t>) {
+			add_t arg1 = arg;
+			arg1.srcLineNo = std::min<ptrdiff_t>(arg.srcLineNo, p.lineCount());
+			processAdd(arg1, p);
+		}
 		else if constexpr (std::is_same_v<T, del_t>) processDel(arg, p);
+		else if constexpr (std::is_same_v<T, repl_t>) processRepl(arg, p);
 		else static_assert(dependent_false_v<T>, "Non-exhaustive variant!");
 		return; }, q.top());
 
@@ -220,11 +294,14 @@ std::string apply_changes(std::string_view orig, prio_queue_t& q, tao::pegtl::pa
 {
 	std::string ret;
 	for (auto& edits : edit_root.children) {
-		if (edits->type == "struct seacugrammar::addLine") {
+		if (edits->type == "struct seacugrammar::add_line") {
 			handle_adds(orig, q, *edits);
 		}
-		else if (edits->type == "struct seacugrammar::delLine") {
+		else if (edits->type == "struct seacugrammar::del_line") {
 			handle_dels(orig, q, *edits);
+		}
+		else if (edits->type == "struct seacugrammar::repl_line") {
+			handle_repls(orig, q, *edits);
 		}
 	}
 	return ret;
@@ -265,31 +342,49 @@ patcher& patcher::operator=(const patcher& other)
 
 	return *this;
 }
+
 void patcher::insertAdd(ptrdiff_t lineno, character_type const* begin, character_type const* end)
 {
 	assert(lineno > -1);
-	character_type const* curr = src_.data() + currSrcPos_;
-	ptrdiff_t consumeSize = srcLines_[lineno].data() - curr;
-	character_type const* prefixEnd = curr + consumeSize;
 
-	buffer_.insert(buffer_.end(), curr, prefixEnd);
+	ptrdiff_t consumeAmount;
+	character_type const* curr = src_.data() + currSrcPos_;
+	if (lineno != srcLines_.size()) {
+		assert(lineno < srcLines_.size());
+		consumeAmount = srcLines_[lineno].data() - curr;
+		character_type const* prefixEnd = curr + consumeAmount;
+
+		buffer_.insert(buffer_.end(), curr, prefixEnd);
+	}
+	else {
+		consumeAmount = src_.end() - (src_.begin() + currSrcPos_);
+		buffer_.insert(buffer_.end(), src_.begin() + currSrcPos_, src_.end());
+	}
+	currSrcPos_ += (consumeAmount);// +(end - begin));
 	buffer_.insert(buffer_.end(), begin, end);
-	currSrcPos_ += (consumeSize + (end-begin));
 }
+
 void patcher::insertDel(ptrdiff_t beginLine, ptrdiff_t endLine)
 {
 	assert(beginLine > 0);
 	assert(endLine >= beginLine);
 
 	character_type const* curr = src_.data() + currSrcPos_;
-	ptrdiff_t consumeSize = srcLines_[beginLine-1].data() - curr;
-	character_type const* prefixEnd = curr + consumeSize;
+
+	ptrdiff_t consumeAmount = srcLines_[beginLine-1].data() - curr;
+
+	character_type const* prefixEnd = curr + consumeAmount;
+
 	buffer_.insert(buffer_.end(), curr, prefixEnd);
 
 	character_type const* delBegin = prefixEnd;
 	character_type const* delEnd = srcLines_[endLine].data();
 
-	currSrcPos_ += (delEnd - delBegin);
+	currSrcPos_ += consumeAmount + (delEnd - delBegin);
+}
+
+void patcher::insertRepl(ptrdiff_t oldBegin, ptrdiff_t oldEnd, ptrdiff_t pos, patcher::character_type const* begin, patcher::character_type const* end) {
+	assert(false);
 }
 void patcher::flushRest()
 {

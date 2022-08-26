@@ -8,7 +8,8 @@
     "boost-container-hash",
     "boost-static-string",
     "argparse",
-    "pegtl"
+    "pegtl",
+    "cxxopts"
   ]
 
 }

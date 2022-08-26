@@ -51,6 +51,8 @@ int emit_affected_line(seacudiff::diff_options& o, std::string_view line, diff_s
 	case ::diff_symbol::DEL:
 		prefix.push_back('<');
 		break;
+	default:
+		break;
 	}
 	prefix.push_back(' ');
 	return emit_line(o, line, prefix.subview());
@@ -81,50 +83,15 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 		switch (e.type) {
 		case in_c::value_type::type_e::Add:
 			s = diff_symbol::ADD;
-#define TO_DISCARDIA
-#ifndef TO_DISCARDIA
-			if (!consecut_deletes.empty()) {
-				flush_deletes = true;
-				del_begin = consecut_deletes.begin();
-				del_end = consecut_deletes.end();
-			}
-#endif
 			break;
 		case in_c::value_type::type_e::Delete:
 			s = diff_symbol::DEL;
-#ifndef TO_DISCARDIA
-			if (consecut_deletes.empty() || consecut_deletes.back()->value.data() + consecut_deletes.back()->value.size() == e.value.data()) {
-				consecut_deletes.emplace_back(&e);
-			}
-			else {
-				consecut_deletes.emplace_back(&e);
-				if (!consecut_deletes.empty()) {
-					flush_deletes = true;
-					del_begin = consecut_deletes.begin();
-					del_end = consecut_deletes.end() - 1;
-				}
-			}
-#endif
 			break;
 		case in_c::value_type::type_e::Replace:
 			s = diff_symbol::REPL;
 			break;
 		}
-#ifndef TO_DISCARDIA
-		if (flush_deletes) {
-			flush_deletes = false;
-			std::size_t first = (*del_begin)->pos;
-			std::size_t last = (*(del_end-1))->pos;
-			res = emit_chunk_header(o, diff_symbol::DEL, (*del_begin)->change_pos, first, last);
-			for (auto ptr : std::span<in_c::value_type*>(del_begin, del_end)) {
-				auto rec_ptr = a.getLineRecord(ptr->value[0]);
-				assert(rec_ptr);
-				res = emit_affected_line(o, rec_ptr->str, diff_symbol::DEL);
-			}
-			consecut_deletes.erase(del_begin, del_end);
-			del_begin = del_end = std::vector<in_c::value_type*>::iterator{};
-		}
-#endif
+
 		if (s == diff_symbol::DEL) {
 			std::size_t first = e.change_pos;
 			std::size_t last = e.change_pos + e.value.size() - 1;
@@ -144,10 +111,10 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 			}
 		}
 		else if (s == diff_symbol::REPL) {
-			std::size_t firstOld = e.change_pos;
-			std::size_t lastOld = e.change_pos + e.value.size() - 1;
-			std::size_t firstNew = e.pos;
-			std::size_t lastNew = e.pos + e.value2.size() - 1;
+			std::size_t firstOld = e.pos;
+			std::size_t lastOld = e.pos + e.value.size() - 1;
+			std::size_t firstNew = e.change_pos;
+			std::size_t lastNew = e.change_pos + e.value2.size() - 1;
 			res = emit_chunk_header(o, diff_symbol::REPL, e.pos, firstOld, lastOld, firstNew, lastNew);
 			for (auto key : e.value) {
 				rec_ptr = a.getLineRecord(key);
@@ -161,20 +128,6 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 		}
 
 	}
-#ifndef TO_DISCARDIA
-	if (!consecut_deletes.empty()) {
-		del_begin = consecut_deletes.begin();
-		del_end = consecut_deletes.end();
-		std::size_t first = (*del_begin)->pos;
-		std::size_t last = (*(del_end - 1))->pos;
-		res = emit_chunk_header(o, diff_symbol::DEL, (*del_begin)->change_pos, first, last);
-		for (auto ptr : std::span<in_c::value_type*>(del_begin, del_end)) {
-			auto rec_ptr = a.getLineRecord(ptr->value[0]);
-			assert(rec_ptr);
-			res = emit_affected_line(o, rec_ptr->str, diff_symbol::DEL);
-		}
-	}
-#endif
 	return res;
 }
 

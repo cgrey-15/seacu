@@ -1,0 +1,12 @@
+include(GenerateExportHeader)
+set(log_sources seaculogger.cpp)
+add_library(seaculog ${log_sources})
+target_compile_features(seaculog PUBLIC cxx_std_20)
+target_include_directories(seaculog PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> $<INSTALL_INTERFACE:include>)
+generate_export_header(seaculog BASE_NAME seaculogger)
+target_compile_definitions(seaculog PUBLIC $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,STATIC_LIBRARY>:SEACULOGGER_STATIC_DEFINE>)
+
+add_library(seaculog-header-only INTERFACE)
+target_compile_definitions(seaculog-header-only INTERFACE SEACULOGGER_HEADER_ONLY SEACULOGGER_STATIC_DEFINE)
+target_include_directories(seaculog-header-only INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> $<INSTALL_INTERFACE:include>)
+target_compile_features(seaculog-header-only INTERFACE cxx_std_20)

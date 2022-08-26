@@ -346,21 +346,33 @@ void merge_adjacent_changes(std::vector<seacudiff::edit_t<SeqT>>& out) {
         // Review later; may be non-exhaustive and even bad
         if (fItPrev->type == edT::type_e::Delete && fItCurr->type == edT::type_e::Add && overlaps(*fItPrev, *fItCurr))
         {
-            auto newPrev = fItPrev + 1;
             fItPrev->type = edT::type_e::Replace;
             fItPrev->value2 = fItCurr->value;
+            fItPrev->change_pos = fItCurr->change_pos;
+
+            auto pos = fItPrev.base() - out.cbegin();
             out.erase(fItCurr.base() - 1);
-            fItPrev = newPrev;
-            fItCurr = fItPrev - 1;
+            fItCurr = std::make_reverse_iterator(out.begin() + pos);
+            fItPrev = fItCurr + 1;
         }
         else if (fItPrev->type == edT::type_e::Add && fItCurr->type == edT::type_e::Delete && overlaps(*fItPrev, *fItCurr))
         {
-            auto beforeNewPrev = fItPrev + 2; // Is this allowed and not UB?
+            //auto beforeNewPrev = fItPrev + 2; // Is this allowed and not UB?
             fItCurr->type = edT::type_e::Replace;
             fItCurr->value2 = fItPrev->value;
-            out.erase(fItPrev.base() - 1);
-            fItPrev = beforeNewPrev - 1; // Will this still work if it's at least at out.rend()??
-            fItCurr = fItPrev - 1;
+            fItCurr->change_pos = fItPrev->change_pos;
+            auto pos = fItPrev.base() - out.cbegin();
+
+            if (fItPrev + 1 == rEnd) {
+                out.erase(fItPrev.base() - 1);
+                rEnd = out.rend();
+            }
+            else {
+                out.erase(fItPrev.base() - 1);
+            }
+            // Will this still work if it's at least at out.rend()??
+            fItCurr = std::make_reverse_iterator(out.begin() + pos);
+            fItPrev = fItCurr + 1;
         }
         else {
             ++fItPrev;
@@ -373,7 +385,9 @@ void merge_adjacent_changes(std::vector<seacudiff::edit_t<SeqT>>& out) {
 template<typename SeqT>
 auto seacudiff::impl::e_graph<SeqT>::do_get_diff(v_seq a, v_seq b)->std::vector<seacudiff::edit_t<SeqT>> {
     auto res = do_get_diff_impl(a, b);
-    merge_adjacent_changes(res);
+    if (!res.empty() ){//&& false) {
+        merge_adjacent_changes(res);
+    }
     return res;
 }
 
@@ -402,7 +416,7 @@ auto seacudiff::impl::e_graph<SeqT>::do_get_diff_impl(v_seq a, v_seq b)->std::ve
             v_seq remainders;
             if (a[0] == b[0]) {
                 remainders = b.subspan(n);
-                affected_pos = (a.data() - &*a_begin);
+                affected_pos = a.data() + n - &*a_begin;
                 source_pos = (b.data() - &*b_begin);
             }
             else {

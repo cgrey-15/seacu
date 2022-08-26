@@ -31,7 +31,7 @@ if(SEACU_ASAN_ENABLED)
 endif()
 
 add_executable(test_prog ${SEACUDIFF_MAIN_SOURCES})
-target_link_libraries(test_prog argparse::argparse)
+target_link_libraries(test_prog cxxopts::cxxopts)
 
 target_compile_features(seacudiff PUBLIC cxx_std_20)
 target_link_libraries(seacudiff PRIVATE Boost::headers PUBLIC Microsoft.GSL::GSL)

@@ -1,15 +1,18 @@
-#include <iostream>
-#include <algorithm>
 #include "seacudiff.h"
 #include "SeacudiffTypes.h"
 #include "diff_standard.h"
 #include "SequenceProcessor.h"
 #include "diff_emit.h"
 
-int runTest(char const* a_str, char const* b_str, std::ptrdiff_t expectedAddCount, std::ptrdiff_t expectedDelCount);
+#include <iostream>
+#include <algorithm>
+#include <tuple>
 
-int SimpleLines(int argc, char* argv[]) {
-	char const lao[] =
+using line_edit_t = seacudiff::edit_t<uint32_t>;
+using edit_list_t = std::vector<line_edit_t>;
+
+auto laoTzuTest()->std::tuple<char const*, char const*, edit_list_t> {
+	static constexpr const char lao[] =
 		"The way the can be told of is not the eternal Way;\n"
 		"The name that can be named is not the eternam name.\n"
 		"The Nameless is the origin of Heaven and Earth;\n"
@@ -22,7 +25,7 @@ int SimpleLines(int argc, char* argv[]) {
 		"But after they are produced,\n"
 		"  they have different names.\n";
 
-	char const tzu[] =
+	static char const tzu[] =
 		"The Nameless is the origin of Heaven and Earth;\n"
 		"The named is the mother of all things.\n"
 		"\n"
@@ -37,8 +40,21 @@ int SimpleLines(int argc, char* argv[]) {
 		"Deeper and more profound,\n"
 		"The door of all subtleties!\n";
 
+	//constexpr std::string_view str{ lao };
+	constexpr auto i1 = std::string_view{ lao }.find("The name that can be named");
+
+	edit_list_t edits{};
+
+	return std::make_tuple(lao, tzu, edits);
+}
+
+int runTest(char const* a_str, char const* b_str, std::ptrdiff_t expectedAddCount, std::ptrdiff_t expectedDelCount, std::ptrdiff_t expectedReplaceCount);
+
+int SimpleLines(int argc, char* argv[]) {
+
 	{
-		int retval = runTest(lao, tzu, 2, 3);
+		auto [lao, tzu, theEdits] = laoTzuTest();
+		int retval = runTest(lao, tzu, 1, 1, 1);
 		if (retval != 0) return retval;
 	}
 
@@ -57,14 +73,14 @@ int SimpleLines(int argc, char* argv[]) {
 		"This is Test05.\n";
 
 	{
-		int retval = runTest(mip, mop, 1, 4);
+		int retval = runTest(mip, mop, 1, 1, 0);
 		if (retval != 0) return retval;
 	}
 
 	return 0;
 }
 
-int runTest(char const* a_str, char const* b_str, std::ptrdiff_t expectedAddCount, std::ptrdiff_t expectedDelCount)
+int runTest(char const* a_str, char const* b_str, std::ptrdiff_t expectedAddCount, std::ptrdiff_t expectedDelCount, std::ptrdiff_t expectedReplaceCount)
 {
 	seacudiff::DiffEntrySeacufiles a{ a_str, true };
 	seacudiff::DiffEntrySeacufiles b{ b_str, false };
@@ -80,8 +96,9 @@ int runTest(char const* a_str, char const* b_str, std::ptrdiff_t expectedAddCoun
 
 	auto addCount = std::ranges::count_if(diff_res, [](const auto& v) {return v.type == seacudiff::edit_t<std::uint32_t>::type_e::Add; });
 	auto delCount = std::ranges::count_if(diff_res, [](const auto& v) {return v.type == seacudiff::edit_t<std::uint32_t>::type_e::Delete; });
+	auto replCount = std::ranges::count_if(diff_res, [](const auto& v) {return v.type == line_edit_t::type_e::Replace; });
 
-	if (addCount != expectedAddCount || delCount != expectedDelCount) {
+	if (addCount != expectedAddCount || delCount != expectedDelCount || replCount != expectedReplaceCount) {
 		seacudiff::diff_emit_t{ seacudiff::diff_options(std::cout) }(diff_res, a, b);
 		return 1;
 	}
