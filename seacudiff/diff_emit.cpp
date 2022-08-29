@@ -4,8 +4,6 @@
 #include <type_traits>
 #include <iterator>
 #include <format>
-#define BOOST_STATIC_STRING_STANDALONE
-#include <boost/static_string/static_string.hpp>
 
 int seacudiff::diff_emit_t::foo() {
 	return 0;
@@ -43,7 +41,7 @@ int emit_line(seacudiff::diff_options& o, std::string_view line, std::string_vie
 
 int emit_affected_line(seacudiff::diff_options& o, std::string_view line, diff_symbol sy) {
 	//const char
-	boost::static_string<::BUFF_SIZE> prefix;
+	std::string prefix{}; // relying on short-string-optimization
 	switch (sy) {
 	case ::diff_symbol::ADD:
 		prefix.push_back('>');
@@ -55,7 +53,7 @@ int emit_affected_line(seacudiff::diff_options& o, std::string_view line, diff_s
 		break;
 	}
 	prefix.push_back(' ');
-	return emit_line(o, line, prefix.subview());
+	return emit_line(o, line, prefix);
 }
 
 int emit_line(seacudiff::diff_options& o, std::string_view line, std::string_view prefix) { 

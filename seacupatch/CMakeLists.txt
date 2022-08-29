@@ -4,7 +4,7 @@ set(seacupatch_sources seacupatch.h seacupatch.cpp)
 set(libseacupatch_runner_sources main.cpp platform/ConsoleMisc.h platform/ConsoleMiscWin32.cpp)
 
 add_library(seacupatch ${seacupatch_sources})
-target_compile_features(seacupatch PUBLIC cxx_std_23)
+target_compile_features(seacupatch PUBLIC cxx_std_20)
 target_link_libraries(seacupatch PUBLIC taocpp::pegtl)
 if(SEACU_ASAN_ENABLED)
  message(NOTICE "Seacupatch: Building with Address Sanitizer enabled.")

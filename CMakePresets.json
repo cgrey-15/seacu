@@ -126,6 +126,12 @@
           "value": "ON"
         }
       }
+    },
+    {
+      "name": "example-windows",
+      "displayName": "Example of Windows x64",
+      "description": "Example Debug build with tests enabled",
+      "inherits": ["x64-debug", "tests-enabled"]
     }
   ]
 }
