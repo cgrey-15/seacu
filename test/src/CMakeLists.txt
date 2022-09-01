@@ -6,7 +6,7 @@ create_test_sourcelist(Tests SimpleTests.cpp ${TEST_SOURCES})
 
 add_executable(SimpleTests ${Tests})
 
-target_link_libraries(SimpleTests PRIVATE seacudiff)
+target_link_libraries(SimpleTests PRIVATE seacudiff Boost::headers)
 
 set(TestsToRun ${TEST_SOURCES})
 

@@ -10,3 +10,11 @@ add_library(seaculog-header-only INTERFACE)
 target_compile_definitions(seaculog-header-only INTERFACE SEACULOGGER_HEADER_ONLY SEACULOGGER_STATIC_DEFINE)
 target_include_directories(seaculog-header-only INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> $<INSTALL_INTERFACE:include>)
 target_compile_features(seaculog-header-only INTERFACE cxx_std_20)
+
+install(TARGETS seaculog seaculog-header-only EXPORT SeacuProjectTargets
+ LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+ ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+ RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+ INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES seaculogger.h seaculogger.hpp "${CMAKE_CURRENT_BINARY_DIR}/seaculogger_export.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

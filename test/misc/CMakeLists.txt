@@ -6,7 +6,7 @@ create_test_sourcelist(Tests MiscTests.cpp ${TEST_SOURCES})
 
 add_executable(MiscTests ${Tests})
 
-target_link_libraries(MiscTests PRIVATE seacudiff seaculog)
+target_link_libraries(MiscTests PRIVATE seacudiff seaculog Boost::headers)
 
 set(TestsToRun2 ${TEST_SOURCES})
 

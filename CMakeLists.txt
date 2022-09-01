@@ -6,6 +6,8 @@ option(SEACU_ASAN_ENABLED "Build seacu libraries with AddressSanitizer" ${SEACU_
 
 project(SeacuProject LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 find_package(Microsoft.GSL CONFIG REQUIRED)
 find_package(fmt CONFIG)
 find_package(Boost REQUIRED)
@@ -15,6 +17,7 @@ find_package(pegtl CONFIG REQUIRED)
 add_subdirectory(logger)
 add_subdirectory(seacudiff)
 add_subdirectory(seacupatch)
+export(EXPORT SeacuProjectTargets FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/SeacuTargets.cmake" NAMESPACE seacu::)
 if(SEACU_ENABLE_TESTS)
  include(CTest)
  add_subdirectory(test)
