@@ -26,7 +26,7 @@ seacu::logger<C>& seacu::logger<C>::operator<<(T val) noexcept {
 		logStore_.emplace_back(val);
 		++currPos_;
 		if (val == '\n') {
-			lines_.emplace_back(lastLineBegin_, currPos_ - lastLineBegin_);
+			lines_.emplace_back(lastLineBegin_, static_cast<std::uint32_t>(currPos_ - lastLineBegin_));
 			lastLineBegin_ = currPos_;
 		}
 	}

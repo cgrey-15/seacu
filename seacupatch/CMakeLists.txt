@@ -22,6 +22,7 @@ if(SEACU_ASAN_ENABLED)
   target_link_options(seacupatch PUBLIC -fsanitize=address)
  endif()
 endif()
+add_library(seacu::seacupatch ALIAS seacupatch)
 add_executable(libseacupatch_runner ${libseacupatch_runner_sources})
 target_compile_features(libseacupatch_runner PRIVATE cxx_std_20)
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.21)
 
 set(SEACUDIFF_MAIN_SOURCES "main.cpp")
 
@@ -40,14 +40,7 @@ if(CMAKE_BUILD_TYPE MATCHES "[Dd][Ee][Bb][Uu][Gg]")
 endif()
 target_link_libraries(libseacudiff_runner seacudiff)
 
-get_target_property(THE_THING seacudiff INCLUDE_DIRECTORIES)
-message(WARNING "Hooplap! This is the following: '${THE_THING}'")
-
-if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "[Mm][Ss][Vv][Cc]")
- if(NOT SEACUDIFF_ASAN_ENABLED)
-  target_compile_options(seacudiff PRIVATE /ZI)
- endif()
-endif()
+add_library(seacu::seacudiff ALIAS seacudiff)
 
 install(TARGETS seacudiff libseacudiff_runner EXPORT SeacuProjectTargets
  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
