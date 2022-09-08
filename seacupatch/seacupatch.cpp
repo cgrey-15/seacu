@@ -135,7 +135,7 @@ int seacupatch::patch(std::string_view buf_in, std::string_view buf_changes) {
 	}
 	catch (const tao::pegtl::parse_error& e) {
 		std::cerr << e.what() << std::endl;
-		std::cerr << e.positions().front() << "---KABLAM!\n";
+		std::cerr << e.positions().front() << "\n";
 		pos = e.positions().front();
 	}
 	assert(root_hdl);
@@ -146,32 +146,26 @@ int seacupatch::patch(std::string_view buf_in, std::string_view buf_changes) {
 
 	std::string patched_str = apply_changes(buf_in, theChanges, root);
 
-	std::cout << "THE RESULT:\n";
 
 	patcher machine{ buf_in };
 	processChanges(theChanges, machine);
-	std::cout << machine.stdStringView() << "\n";
+	std::string_view valueThing = machine.stdStringView();
+	std::cout << machine.stdStringView() << "";
 
 
 	return 0;
 }
 void handle_add_line(std::string_view orig, prio_queue_t& q, ptrdiff_t lineNo, tao::pegtl::parse_tree::node& line) {
-	constexpr std::string_view mssg = "";//\xe3\x81\xa8\xe6\x9b\xb8\xe3\x81\x84\xe3\x81\xa6\xe5\x85\xa5\xe3\x82\x8c\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
 	auto begini = line.string_view().data();
 	auto endi = line.string_view().data() + line.string_view().size();
 	q.push(add_t{ .srcLineNo = lineNo,.begin = begini, .end = endi });
-	std::cout << " " << line.string_view() << mssg << "\n";
 }
 void handle_del_line(std::string_view orig, prio_queue_t& q, ptrdiff_t first, ptrdiff_t last, tao::pegtl::parse_tree::node& line) {
-	constexpr std::string_view mssg = "";//\xe3\x81\xa3\xe3\x81\xa6\xe6\xb6\x88\xe3\x81\x88\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
 	//del_t del{ .srcFirstLine = first,.srcLastLine = last };
 	q.push(del_t{ .srcFirstLine = first,.srcLastLine = last });
-	std::cout << " " << line.string_view() << mssg << "\n";
 }
 void handle_repl_added_line(std::vector<std::string_view>& lines, tao::pegtl::parse_tree::node& line) {
-	constexpr std::string_view mssg = "";//Oh it's \xe3\x81\xa3\xe3\x81\xa6\xe6\xb6\x88\xe3\x81\x88\xe3\x81\xa6\xe3\x81\xbb\xe3\x81\x97\xe3\x81\x84\xe3\x81\xa7\xe3\x81\x99\xe3\x80\x82";
 	lines.push_back(line.string_view());
-	std::cout << " " << line.string_view() << mssg << "\n";
 }
 void handle_adds(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edit) {
 #ifdef __cpp_lib_spanstream
@@ -187,7 +181,6 @@ void handle_adds(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree:
 
 	instream >> where >> add_symbol >> dest_start >> comma >> dest_end;
 
-	std::cout << where << " " << add_symbol << " " << dest_start << "," << dest_end << "!\n";
 	assert(!instream.bad());
 	for (auto& line : edit.children) {
 		handle_add_line(orig, q, where++, *line);
@@ -207,7 +200,6 @@ void handle_dels(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree:
 
 	instream >> src_start >> comma >> src_end >> del_symbol >> where_would;
 
-	std::cout << src_start << "," << src_end << " " << del_symbol << " " << where_would << "!\n";
 	assert(!instream.bad());
 	q.push(del_t{src_start, src_end});
 }
@@ -241,7 +233,6 @@ void handle_repls(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree
 		new_last = new_start;
 	}
 
-	std::cout << old_start << "," << old_end << " " << repl_symbol << " " << new_start << "!\n";
 	std::vector<std::string_view> lines;
 	for (auto& line : edit.children.back()->children) {
 		handle_repl_added_line(lines, *line);
@@ -253,18 +244,14 @@ void handle_repls(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree
 #endif
 }
 void processAdd(add_t info, patcher& p) {
-	std::cout << "(add) POS: " << info.srcLineNo << "\n";
 	p.insertAdd(info.srcLineNo, info.begin, info.end);
 }
 void processDel(del_t info, patcher& p) {
-	std::cout << "(del) POS: [" << info.srcFirstLine << ", " << info.srcLastLine << "]\n";
 	p.insertDel(info.srcFirstLine, info.srcLastLine);
 }
 void processRepl(repl_t info, patcher& p) {
-	std::cout << "(replDEL) POS: [" << info.oldFirst << ", " << info.oldLast << "], [" << info.oldPosition << ", " << info.oldPosition << "]\n";
 	p.insertDel(info.oldFirst, info.oldLast);
 	for (auto lineno = info.oldLast, i = lineno-lineno; i < info.newLines.size(); ++i) {
-		std::cout << "(replADD) POS: [" << lineno << "]\n";
 		p.insertAdd(lineno, info.newLines[i].data(), info.newLines[i].data() + info.newLines[i].size());
 	}
 }

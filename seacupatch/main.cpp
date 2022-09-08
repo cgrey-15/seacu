@@ -75,16 +75,15 @@ int main(int argc, const char* argv[]) {
 
 		if (!parseRes["PatchFILE"].has_default()) {
 			auto& arg2 = parseRes["PatchFILE"].as<std::string>();
-			std::cout << "and an optional arg was given: " << arg2 << "\n";
 			ret = do_something(arg, arg2);
 		}
 	}
 	else {
 		if (parseRes["PatchFILE"].has_default()) {
-			std::cout << "...unfortunately, no arguments were given.\n";
+			std::cout << "No patch file.\n";
 		}
 		else {
-			std::cerr << "...\n";
+			std::cerr << "Patch file given but no input file.\n";
 			std::exit(1);
 		}
 	}
