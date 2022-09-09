@@ -24,6 +24,7 @@ if(SEACU_ASAN_ENABLED)
 endif()
 add_library(seacu::seacupatch ALIAS seacupatch)
 add_executable(libseacupatch_runner ${libseacupatch_runner_sources})
+add_executable(seacu::libseacupath_runner ALIAS libseacupatch_runner)
 target_compile_features(libseacupatch_runner PRIVATE cxx_std_20)
 
 target_link_libraries(libseacupatch_runner PRIVATE seacupatch cxxopts::cxxopts)

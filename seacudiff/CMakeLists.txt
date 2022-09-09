@@ -41,6 +41,7 @@ endif()
 target_link_libraries(libseacudiff_runner seacudiff)
 
 add_library(seacu::seacudiff ALIAS seacudiff)
+add_executable(seacu::libseacudiff_runner ALIAS libseacudiff_runner)
 
 install(TARGETS seacudiff libseacudiff_runner EXPORT SeacuProjectTargets
  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
