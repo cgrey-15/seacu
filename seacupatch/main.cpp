@@ -106,18 +106,28 @@ int do_something(const std::string& filename_a, const std::string& filename_b) {
         str_a.append(buf.data(), s1.gcount());
     }
 
-    s1 = std::ifstream{ filename_b };
-
-    if (!s1) {
-        return 2;
-    }
     std::string str_b;
-    while (s1.read(buf.data(), buf.size())) {
-        str_b.append(buf.data(), s1.gcount());
-    }
-    if (s1.gcount() > 0) {
-        str_b.append(buf.data(), s1.gcount());
-    }
+	if (filename_b != "-") {
+		s1 = std::ifstream{ filename_b };
+
+		if (!s1) {
+			return 2;
+		}
+		while (s1.read(buf.data(), buf.size())) {
+			str_b.append(buf.data(), s1.gcount());
+		}
+		if (s1.gcount() > 0) {
+			str_b.append(buf.data(), s1.gcount());
+		}
+	}
+	else {
+		std::string input_line;
+
+		while (std::getline(std::cin, input_line)) {
+			str_b.append(input_line);
+			str_b.push_back('\n');
+		}
+	}
 
 	return seacupatch::patch(str_a, str_b);
 }
