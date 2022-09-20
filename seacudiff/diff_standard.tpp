@@ -17,7 +17,6 @@
 #ifdef SEACUDIFF_DEBUG
 #include <fmt/format.h>
 #endif
-//#undef SEACUDIFF_DEBUG
 #include <algorithm>
 #include <boost/container_hash/hash.hpp>
 #include "diff_standard.h"
@@ -114,11 +113,11 @@ static auto get_forward_frp(int k, seq_v<SeqT> a, seq_v<SeqT> b, int d_lvl,
 
     std::pair<int, int> res;
     if (k == -d_lvl || (k != d_lvl && v[k - 1] < v[k + 1])) {
-        res.second = k + 1;
+        //res.second = k + 1;
         x = v[k + 1];
     }
     else {
-        res.second = k - 1;
+        //res.second = k - 1;
         x = v[k - 1] + 1;
     }
 
@@ -128,8 +127,8 @@ static auto get_forward_frp(int k, seq_v<SeqT> a, seq_v<SeqT> b, int d_lvl,
         ++x;
         ++y;
     }
-    //return x;
     res.first = x;
+    res.second = x_old;
     return res;
 }
 template <typename SeqT>
@@ -145,22 +144,20 @@ static auto get_backward_frp(int k_2, seq_v<SeqT> a, seq_v<SeqT> b, int d_lvl,
 
     std::pair<int, int> res;
     if (k_2 == -d_lvl + delta || (k_2 != d_lvl + delta && v_2[k_2 - 1] > v_2[k_2 + 1])) {
-        res.second = k_2 + 1;
         x = v_2[k_2 + 1] - 1;
     }
     else {
-        res.second = k_2 - 1;
         x = v_2[k_2 - 1];
     }
 
     int y = x - k_2;
-    int old_x = x;
+    int x_old = x;
     while (x > 0 && y > 0 && a[x-1] == b[y-1]) {
         --x;
         --y;
     }
-    //return x;
     res.first = x;
+    res.second = x_old;
     return res;
 
 }
@@ -206,19 +203,14 @@ auto seacudiff::impl::e_graph<SeqT>::middle_snake(v_seq a, v_seq b)->std::pair<i
             if (!deltaIsEven && (k >= delta - (d_lvl - 1) && k <= delta + (d_lvl - 1))) {
                 if (v_a[k] >= v_b[k]) {
                     ses_res = (d_lvl * 2) - 1;
-                    if (k == -d_lvl) {
-                        sx = v_a[k + 1];
-                    }
-                    else if (k == d_lvl) {
-                        sx = v_a[k - 1] + 1;
-                    }
-                    else {
-                        sx = std::max(v_a[k + 1], v_a[k - 1] + 1);
-                    }
+
+                    sx = v.second;
                     sy = sx - k;
                     su = v_a[k];
                     sv = y1;
+
                     PRINT_VERTICES(res_a, (m + n + (delta < 0 ? -delta : 0) - d_lvl), static_cast<size_t>(d_lvl) + 1, 0, true);
+
                     return { (d_lvl*2) - 1, {sx, sy, su, sv}};
                 }
             }
@@ -237,11 +229,14 @@ auto seacudiff::impl::e_graph<SeqT>::middle_snake(v_seq a, v_seq b)->std::pair<i
                 //if (x2 - y2 == x1 - y1 && x1 >= x2) {
                 if (v_a[k2] >= v_b[k2]) {
                     ses_res = (d_lvl * 2);
+
                     sx = x2;
                     sy = y2;
-                    su = v_a[k2];
+                    su = v.second;
                     sv = su - k2;
+
                     PRINT_VERTICES(res_b, (m + n + (delta < 0 ? -delta : 0) - d_lvl + delta), static_cast<size_t>(d_lvl) + 1, delta, true);
+
                     return { d_lvl * 2, {sx, sy, su, sv} };
                 }
             }
@@ -404,9 +399,10 @@ auto seacudiff::impl::e_graph<SeqT>::do_get_diff_impl(v_seq a, v_seq b)->std::ve
             auto v_b = do_get_diff_impl(a.subspan(s_.u), b.subspan(s_.v));
             typename decltype(res)::const_iterator start_it = v_b.cbegin();
             if (!v_a.empty() && !v_b.empty() && v_a.back().type == edit_t<SeqT>::type_e::Add && v_b.front().type == edit_t<SeqT>::type_e::Add) {
-                assert(v_a.back().value.data() + v_a.back().value.size() == v_b.front().value.data());
-                res.back().value = v_seq(v_a.back().value.data(), v_b.front().value.data() + v_b.front().value.size());
-                ++start_it;
+                if (v_a.back().value.data() + v_a.back().value.size() == v_b.front().value.data()) {
+                    res.back().value = v_seq(v_a.back().value.data(), v_b.front().value.data() + v_b.front().value.size());
+                    ++start_it;
+                }
             }
             res.insert(res.end(), start_it, v_b.cend());
         }

@@ -31,6 +31,10 @@ int main(int argc, char* argv[]) {
     //using namespace seacu;
 
     bool use_backwards = false;
+    {
+        //std::string bufi;
+        //std::getline(std::cin, bufi);
+    }
 
     //argparse::ArgumentParser prog{ "test_prog", "0.0.5" };
     cxxopts::Options prog{ "test_prog", "Test program to diff files" };
@@ -123,29 +127,32 @@ int do_file_diff(const std::string& filename_a, const std::string& filename_b) {
 
     std::array<char, CAP> buf;
 
-    std::ifstream s1{filename_a};
-    if (!s1) {
-        return 2;
-    }
     std::string str_a;
-    while (s1.read(buf.data(), buf.size())) {
-        str_a.append(buf.data(), s1.gcount());
-    }
-    if (s1.gcount() > 0) {
-        str_a.append(buf.data(), s1.gcount());
-    }
-
-    s1 = std::ifstream{ filename_b };
-
-    if (!s1) {
-        return 2;
-    }
     std::string str_b;
-    while (s1.read(buf.data(), buf.size())) {
-        str_b.append(buf.data(), s1.gcount());
-    }
-    if (s1.gcount() > 0) {
-        str_b.append(buf.data(), s1.gcount());
+
+    {
+        std::ifstream s1{ filename_a };
+        if (!s1) {
+            return 2;
+        }
+        while (s1.read(buf.data(), buf.size())) {
+            str_a.append(buf.data(), s1.gcount());
+        }
+        if (s1.gcount() > 0) {
+            str_a.append(buf.data(), s1.gcount());
+        }
+
+        s1 = std::ifstream{ filename_b };
+
+        if (!s1) {
+            return 2;
+        }
+        while (s1.read(buf.data(), buf.size())) {
+            str_b.append(buf.data(), s1.gcount());
+        }
+        if (s1.gcount() > 0) {
+            str_b.append(buf.data(), s1.gcount());
+        }
     }
 
     return do_in_mem_diff(str_a, str_b, std::cout);

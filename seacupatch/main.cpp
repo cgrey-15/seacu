@@ -129,5 +129,11 @@ int do_something(const std::string& filename_a, const std::string& filename_b) {
 		}
 	}
 
+	{
+		//std::string bufi;
+		//std::getline(std::cin, bufi);
+		//std::cout << "HELLO... "<< bufi << ". There I said it!\n";
+	}
+
 	return seacupatch::patch(str_a, str_b);
 }

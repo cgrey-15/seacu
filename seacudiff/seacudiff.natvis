@@ -16,7 +16,7 @@
 			<ArrayItems>
 				<Size>(d_lvl_*2)+1</Size>
 				<LowerBound>-d_lvl_+delta_</LowerBound>
-				<ValuePointer>v_.storage_.data_+(offset_-d_lvl_) + delta_</ValuePointer>
+				<ValuePointer>v_.data()+(offset_-d_lvl_) + delta_</ValuePointer>
 			</ArrayItems>
 		</Expand>
 	</Type>
