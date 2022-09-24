@@ -91,9 +91,9 @@ int emit_diff_symbols(seacudiff::diff_options& o, in_c& edits, const seacudiff::
 		}
 
 		if (s == diff_symbol::DEL) {
-			std::size_t first = e.change_pos;
-			std::size_t last = e.change_pos + e.value.size() - 1;
-			res = emit_chunk_header(o, diff_symbol::DEL, e.pos, first, last);
+			std::size_t first = e.pos;
+			std::size_t last = e.pos + e.value.size() - 1;
+			res = emit_chunk_header(o, diff_symbol::DEL, e.change_pos, first, last);
 			for (auto key : e.value) {
 				rec_ptr = a.getLineRecord(key);
 				res = emit_affected_line(o, rec_ptr->str, s);

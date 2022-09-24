@@ -8,8 +8,8 @@
 #include <variant>
 #include <type_traits>
 #include <utility>
-#ifdef __cpp_lib_spanstream
 #include <span>
+#ifdef __cpp_lib_spanstream
 #include <spanstream>
 #else
 #include <sstream>
@@ -29,7 +29,7 @@ public:
 
 	patcher& operator=(const patcher& other);
 
-	void insertAdd(ptrdiff_t pos, character_type const* begin, character_type const* end);
+	void insertAdd(ptrdiff_t pos, std::span<const std::string_view> lines);
 	void insertDel(ptrdiff_t begin, ptrdiff_t end);
 	void insertRepl(ptrdiff_t oldBegin, ptrdiff_t oldEnd, ptrdiff_t pos, character_type const* begin, character_type const* end);
 	void flushRest();
@@ -49,7 +49,7 @@ private:
 
 struct add_t {
 	ptrdiff_t srcLineNo;
-	char const *begin, *end;
+	std::vector<std::string_view> lines;
 };
 struct del_t {
 	ptrdiff_t srcFirstLine;
@@ -70,43 +70,43 @@ constexpr auto comparator = [](auto&& a, auto&& b) {
 		auto& val_a = std::get<add_t>(a);
 		if (std::holds_alternative<add_t>(b)) {
 			auto& val_b = std::get<add_t>(b);
-			res = val_a.srcLineNo > val_b.srcLineNo;
+			res = val_a.srcLineNo < val_b.srcLineNo;
 		}
 		else if (std::holds_alternative<repl_t>(b)) {
 			auto& val_b = std::get<repl_t>(b);
-			res = val_a.srcLineNo > val_b.oldFirst;
+			res = val_a.srcLineNo < val_b.oldFirst;
 		}
 		else {
 			auto& val_b = std::get<del_t>(b);
-			res = val_a.srcLineNo > val_b.srcFirstLine;
+			res = val_a.srcLineNo < val_b.srcFirstLine;
 		}
 	}
 	else if (std::holds_alternative<del_t>(a)) {
 		auto& val_a = std::get<del_t>(a);
 		if (std::holds_alternative<add_t>(b)) {
 			auto& val_b = std::get<add_t>(b);
-			res = val_a.srcFirstLine > val_b.srcLineNo;
+			res = val_a.srcFirstLine < val_b.srcLineNo;
 		}
 		else if (std::holds_alternative<repl_t>(b)) {
 			auto& val_b = std::get<repl_t>(b);
-			res = val_a.srcFirstLine > val_b.oldFirst;
+			res = val_a.srcFirstLine < val_b.oldFirst;
 		}
 		else {
 			auto& val_b = std::get<del_t>(b);
-			res = val_a.srcFirstLine > val_b.srcFirstLine;
+			res = val_a.srcFirstLine < val_b.srcFirstLine;
 		}
 	}
 	else if (std::holds_alternative<repl_t>(a)) {
 		auto& val_a = std::get<repl_t>(a);
 		if (std::holds_alternative<add_t>(b)) {
 			auto& val_b = std::get<add_t>(b);
-			res = val_a.oldFirst > val_b.srcLineNo;
+			res = val_a.oldFirst < val_b.srcLineNo;
 		}
 		else if (std::holds_alternative<del_t>(b)) {
-			res = std::get<repl_t>(a).oldFirst > std::get<del_t>(b).srcFirstLine;
+			res = std::get<repl_t>(a).oldFirst < std::get<del_t>(b).srcFirstLine;
 		}
 		else {
-			res = std::get<repl_t>(a).oldFirst > std::get<repl_t>(b).oldFirst;
+			res = std::get<repl_t>(a).oldFirst < std::get<repl_t>(b).oldFirst;
 		}
 	}
 	else {
@@ -120,12 +120,13 @@ template <typename>
 constexpr bool dependent_false_v = false;
 
 using prio_queue_t = std::priority_queue<std::variant<add_t, del_t, repl_t>, std::vector<std::variant<add_t, del_t, repl_t>>, decltype(comparator)>;
+using edit_vec_t = std::vector<std::variant<add_t, del_t, repl_t>>;
 
 std::vector<std::string_view> get_lines(std::string_view buf);
-std::string apply_changes(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edits);
-void processChanges(prio_queue_t& q, patcher& p);
+std::string apply_changes(std::string_view orig, edit_vec_t& v, tao::pegtl::parse_tree::node& edits);
+void processChanges(edit_vec_t& v, patcher& p);
 
-int seacupatch::patch(std::string_view buf_in, std::string_view buf_changes) {
+int seacupatch::patch(std::string_view buf_in, std::string_view buf_changes, cmd_opts progOpt) {
 
 	auto in = tao::pegtl::memory_input(buf_changes.data(), buf_changes.size(), "buf_changes");
 	std::unique_ptr<tao::pegtl::parse_tree::node> root_hdl;
@@ -142,10 +143,19 @@ int seacupatch::patch(std::string_view buf_in, std::string_view buf_changes) {
 	auto& root = *root_hdl;
 
 	//auto str = apply_changes(buf_in, root);
-	auto theChanges = prio_queue_t(comparator);
+	auto theChanges = edit_vec_t{};//prio_queue_t(comparator);
 
 	std::string patched_str = apply_changes(buf_in, theChanges, root);
 
+	if (!std::is_sorted(theChanges.cbegin(), theChanges.cend(), comparator)) {
+		if (progOpt.forceSort) {
+			std::stable_sort(theChanges.begin(), theChanges.end(), comparator);
+		}
+		else {
+			std::cerr << "Patch file's edits are out of order. Use --force-sort\n";
+			return 1;
+		}
+	}
 
 	patcher machine{ buf_in };
 	processChanges(theChanges, machine);
@@ -155,19 +165,14 @@ int seacupatch::patch(std::string_view buf_in, std::string_view buf_changes) {
 
 	return 0;
 }
-void handle_add_line(std::string_view orig, prio_queue_t& q, ptrdiff_t lineNo, tao::pegtl::parse_tree::node& line) {
-	auto begini = line.string_view().data();
-	auto endi = line.string_view().data() + line.string_view().size();
-	q.push(add_t{ .srcLineNo = lineNo,.begin = begini, .end = endi });
-}
-void handle_del_line(std::string_view orig, prio_queue_t& q, ptrdiff_t first, ptrdiff_t last, tao::pegtl::parse_tree::node& line) {
-	//del_t del{ .srcFirstLine = first,.srcLastLine = last };
-	q.push(del_t{ .srcFirstLine = first,.srcLastLine = last });
+
+void handle_del_line(std::string_view orig, edit_vec_t& v, ptrdiff_t first, ptrdiff_t last, tao::pegtl::parse_tree::node& line) {
+	v.emplace_back(del_t{ .srcFirstLine = first,.srcLastLine = last });
 }
 void handle_repl_added_line(std::vector<std::string_view>& lines, tao::pegtl::parse_tree::node& line) {
 	lines.push_back(line.string_view());
 }
-void handle_adds(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edit) {
+void handle_adds(std::string_view orig, edit_vec_t& v, tao::pegtl::parse_tree::node& edit) {
 #ifdef __cpp_lib_spanstream
 	std::span<const char> edit_info(edit.string_view().data(), edit.string_view().size());
 	std::ispanstream instream{ edit_info };
@@ -176,17 +181,19 @@ void handle_adds(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree:
 #endif
 
 	char add_symbol, comma;
-	size_t where = -1;
+	std::ptrdiff_t where = -1;
 	size_t dest_start = 0, dest_end = 0;
 
 	instream >> where >> add_symbol >> dest_start >> comma >> dest_end;
 
 	assert(!instream.bad());
+	std::vector<std::string_view> lines;
 	for (auto& line : edit.children) {
-		handle_add_line(orig, q, where++, *line);
+		lines.emplace_back(line->string_view());
 	}
+	v.emplace_back(add_t{ .srcLineNo = where, .lines = std::move(lines) });
 }
-void handle_dels(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edit) {
+void handle_dels(std::string_view orig, edit_vec_t& v, tao::pegtl::parse_tree::node& edit) {
 #ifdef __cpp_lib_spanstream
 	std::span<const char> edit_info(edit.string_view().data(), edit.string_view().size());
 	std::ispanstream instream{ edit_info };
@@ -201,10 +208,10 @@ void handle_dels(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree:
 	instream >> src_start >> comma >> src_end >> del_symbol >> where_would;
 
 	assert(!instream.bad());
-	q.push(del_t{src_start, src_end});
+	v.emplace_back(del_t{src_start, src_end});
 }
 
-void handle_repls(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edit) {
+void handle_repls(std::string_view orig, edit_vec_t& v, tao::pegtl::parse_tree::node& edit) {
 #ifdef __cpp_lib_spanstream
 	std::span<const char> edit_info(edit.string_view().data(), edit.string_view().size());
 	std::ispanstream instream{ edit_info };
@@ -238,26 +245,26 @@ void handle_repls(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree
 		handle_repl_added_line(lines, *line);
 	}
 #ifndef __clang__
-	q.emplace( std::in_place_type<repl_t>, old_start, old_end, new_start, std::move(lines) );
+	v.emplace_back(repl_t{ old_start, old_end, new_start, std::move(lines) });
 #else
-	q.emplace(repl_t{ old_start, old_end, new_start, std::move(lines) });
+	v.emplace_back(repl_t{ old_start, old_end, new_start, std::move(lines) });
 #endif
 }
 void processAdd(add_t info, patcher& p) {
-	p.insertAdd(info.srcLineNo, info.begin, info.end);
+	p.insertAdd(info.srcLineNo, std::span<const std::string_view>(info.lines.data(), info.lines.size()));
 }
 void processDel(del_t info, patcher& p) {
 	p.insertDel(info.srcFirstLine, info.srcLastLine);
 }
 void processRepl(repl_t info, patcher& p) {
 	p.insertDel(info.oldFirst, info.oldLast);
-	for (auto lineno = info.oldLast, i = lineno-lineno; i < info.newLines.size(); ++i) {
-		p.insertAdd(lineno, info.newLines[i].data(), info.newLines[i].data() + info.newLines[i].size());
-	}
+
+	p.insertAdd(info.oldLast, std::span<const std::string_view>(info.newLines.data(), info.newLines.size()));
 }
 
-void processChanges(prio_queue_t& q, patcher& p) {
-	while (!q.empty()) {
+void processChanges(edit_vec_t& v, patcher& p) {
+	auto editCurr = v.cbegin(), editEnd = v.cend();
+	while (editCurr != editEnd) {
 		std::visit([&p](auto&& arg) {using T = std::decay_t<decltype(arg)>;
 
 		if constexpr (std::is_same_v<T, add_t>) {
@@ -268,27 +275,36 @@ void processChanges(prio_queue_t& q, patcher& p) {
 		else if constexpr (std::is_same_v<T, del_t>) processDel(arg, p);
 		else if constexpr (std::is_same_v<T, repl_t>) processRepl(arg, p);
 		else static_assert(dependent_false_v<T>, "Non-exhaustive variant!");
-		return; }, q.top());
+		return; }, *editCurr);
 
-		q.pop();
+		++editCurr;
 	}
 	if (!p.sourceExhausted()) {
 		p.flushRest();
 	}
 }
 
-std::string apply_changes(std::string_view orig, prio_queue_t& q, tao::pegtl::parse_tree::node& edit_root)
+std::string apply_changes(std::string_view orig, edit_vec_t& v, tao::pegtl::parse_tree::node& edit_root)
 {
+#ifdef __clang__
+	constexpr auto addLineSymbol = "seacugrammar::add_line";
+	constexpr auto delLineSymbol = "seacugrammar::del_line";
+	constexpr auto replLineSymbol = "seacugrammar::repl_line";
+#else
+	constexpr auto addLineSymbol = "struct seacugrammar::add_line";
+	constexpr auto delLineSymbol = "struct seacugrammar::del_line";
+	constexpr auto replLineSymbol = "struct seacugrammar::repl_line";
+#endif
 	std::string ret;
 	for (auto& edits : edit_root.children) {
-		if (edits->type == "struct seacugrammar::add_line") {
-			handle_adds(orig, q, *edits);
+		if (edits->type == addLineSymbol) {
+			handle_adds(orig, v, *edits);
 		}
-		else if (edits->type == "struct seacugrammar::del_line") {
-			handle_dels(orig, q, *edits);
+		else if (edits->type == delLineSymbol) {
+			handle_dels(orig, v, *edits);
 		}
-		else if (edits->type == "struct seacugrammar::repl_line") {
-			handle_repls(orig, q, *edits);
+		else if (edits->type == replLineSymbol) {
+			handle_repls(orig, v, *edits);
 		}
 	}
 	return ret;
@@ -330,7 +346,7 @@ patcher& patcher::operator=(const patcher& other)
 	return *this;
 }
 
-void patcher::insertAdd(ptrdiff_t lineno, character_type const* begin, character_type const* end)
+void patcher::insertAdd(ptrdiff_t lineno, std::span<const std::string_view> lines)
 {
 	assert(lineno > -1);
 
@@ -348,7 +364,9 @@ void patcher::insertAdd(ptrdiff_t lineno, character_type const* begin, character
 		buffer_.insert(buffer_.end(), src_.begin() + currSrcPos_, src_.end());
 	}
 	currSrcPos_ += (consumeAmount);// +(end - begin));
-	buffer_.insert(buffer_.end(), begin, end);
+	for (auto line : lines) {
+		buffer_.insert(buffer_.end(), line.cbegin(), line.cend());
+	}
 }
 
 void patcher::insertDel(ptrdiff_t beginLine, ptrdiff_t endLine)

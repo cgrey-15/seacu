@@ -11,7 +11,7 @@
 #include <bit>
 #include "parsing.hpp"
 
-int do_something(const std::string& filename_a, const std::string& filename_b);
+int do_something(const std::string& filename_a, const std::string& filename_b, seacupatch::cmd_opts progOpt);
 
 int main(int argc, const char* argv[]) {
 
@@ -30,7 +30,8 @@ int main(int argc, const char* argv[]) {
 #endif
 
 		opts.add_options()("ORIGFILE", "Original file to process", cxxopts::value<std::string>()->default_value(""s))
-			("PatchFILE", "A delta file corresponding to original file", cxxopts::value<std::string>()->default_value(""s));
+			("PatchFILE", "A delta file corresponding to original file", cxxopts::value<std::string>()->default_value(""s))
+			("force-sorted", "Sort edits if it's out of order", cxxopts::value<bool>()->default_value("false")->implicit_value("true"));
 		opts.parse_positional({ "ORIGFILE", "PatchFILE" });
 	}
 
@@ -74,8 +75,11 @@ int main(int argc, const char* argv[]) {
 		std::u8string str(std::bit_cast<char8_t*>(arg.data()), arg.size());
 
 		if (!parseRes["PatchFILE"].has_default()) {
+			seacupatch::cmd_opts progOpt = {};
+			progOpt.forceSort = parseRes["force-sorted"].as<bool>();
+
 			auto& arg2 = parseRes["PatchFILE"].as<std::string>();
-			ret = do_something(arg, arg2);
+			ret = do_something(arg, arg2, progOpt);
 		}
 	}
 	else {
@@ -89,7 +93,7 @@ int main(int argc, const char* argv[]) {
 	}
 	return ret;
 }
-int do_something(const std::string& filename_a, const std::string& filename_b) {
+int do_something(const std::string& filename_a, const std::string& filename_b, seacupatch::cmd_opts progOpt) {
     constexpr std::size_t CAP = 32;
 
     std::array<char, CAP> buf;
@@ -135,5 +139,5 @@ int do_something(const std::string& filename_a, const std::string& filename_b) {
 		//std::cout << "HELLO... "<< bufi << ". There I said it!\n";
 	}
 
-	return seacupatch::patch(str_a, str_b);
+	return seacupatch::patch(str_a, str_b, progOpt);
 }
