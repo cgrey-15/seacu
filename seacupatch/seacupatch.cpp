@@ -383,7 +383,7 @@ void patcher::insertDel(ptrdiff_t beginLine, ptrdiff_t endLine)
 	buffer_.insert(buffer_.end(), curr, prefixEnd);
 
 	character_type const* delBegin = prefixEnd;
-	character_type const* delEnd = srcLines_[endLine].data();
+	character_type const* delEnd = srcLines_[endLine-1].data() + srcLines_[endLine-1].size();
 
 	currSrcPos_ += consumeAmount + (delEnd - delBegin);
 }
